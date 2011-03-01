@@ -1,0 +1,3 @@
+sjs is a (simplified) Scheme in JavaScript.
+
+Ported from Peter Norvig's simple lis.py interpreter: http://norvig.com/lispy.html
