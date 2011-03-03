@@ -26,11 +26,20 @@ exports.testTokenize = function(test)
 
     t = qs.makeTokenizer('"No closing\nquotes');
     test.deepEqual(t.next(), {token: 'No closing\nquotes', type: 'STRING', line: 1, column: 1, 
-			      error: 'Unexpected end-of-stream.'}); 
-    
+			      error: 'Unexpected end-of-stream.'});
+
+    t = qs.makeTokenizer('foo;bar\n;goo;zar');
+    test.deepEqual(t.next(), { token:'foo', type:'ATOM', line: 1, column: 1 });
+    test.deepEqual(t.next(), { token:'bar', type:'COMMENT', line: 1, column: 4 });
+    test.deepEqual(t.next(), { token:'goo;zar', type:'COMMENT', line: 2, column: 1 });
+
+    t = qs.makeTokenizer('foo"bar');
+    test.deepEqual(t.next(), { token:'foo', type:'ATOM', line: 1, column: 1, error: 'Illegal character (") encountered.  Missing a space?' });
+
+    t = qs.makeTokenizer('"A string with ;(stuff) in \\"it\\"."');
+    test.equal(t.next().token, 'A string with ;(stuff) in "it".');
 
     test.deepEqual(qs.tokenize('(a "bat" clan (2 21.78))'),['(', 'a','bat','clan','(','2','21.78',')', ')']);
-    //test.deepEqual(qs.parse('((1)(2)(3 3 frog))'), [[1],[2],[3,3,'frog']]);
     test.done();
 }
 

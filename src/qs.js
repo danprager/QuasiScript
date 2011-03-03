@@ -6,10 +6,8 @@
 /// Could use underscore.js for more functional goodness.
 ///
 
-var sys = require('sys');
-
 //--------------------------------------------------------------------------------
-// Parsing
+// Tokenizing
 //--------------------------------------------------------------------------------
 
 var makeTokenizer = function(s)
@@ -22,6 +20,14 @@ var makeTokenizer = function(s)
     // End of stream?
     //
     var atEOS = function() { return index >= length; }
+
+    // Does 'ch' start a comment?
+    //
+    var isComment = function(ch) { return ch === ';'; }
+
+    // Does 'ch' start (or end) a string?
+    //
+    var isString = function(ch) { return ch === '"'; }
 
     // Is 'ch' a recognised bracket?
     //
@@ -64,6 +70,8 @@ var makeTokenizer = function(s)
 	return { token: '', type: type, line: line, column: column }; 
     }
 
+    // Read the next character as a token of type 'type' 
+    //
     var readChar = function(type)
     {
 	var result = getTokenResult(type);
@@ -72,12 +80,19 @@ var makeTokenizer = function(s)
 	return result;
     }
 
-    var readTo = function(endChar, type, EOSok)
+    // Build a token, ignoring the first character, and reading until 'endChar' or the end-of-stream is reached.
+    // Excludes the end characters.  E.g. "stuff" -> stuff.
+    //
+    // Flags
+    //     EOSok: Don't record an error if end-of-stream is reached before an 'endChar'.
+    //     escapeCharacter: Allows escape character (otherwise pass in null).  
+    //                      Currently: \endChar, \n, \t, otherwise ignored.
+    //
+    var readTo = function(endChar, type, escCharacter, EOSok)
     {
-	// TODO: Add ability to escape certain sequences, e.g. \" -> "
-	//
 	var result = getTokenResult(type);
 	var token = '';
+	var escaped = false;
 
 	pop();
 	while (true)
@@ -89,22 +104,43 @@ var makeTokenizer = function(s)
 	    }
 
 	    var ch = pop();
-	    if (ch === endChar) break;
-	    token += ch;
+	    
+	    if (escaped && escCharacter)
+	    {
+		token += (ch === 'n') ? '\n' :
+	                 (ch === 't') ? '\t' : ch;
+
+		escaped = false;
+	    }
+	    else
+	    {
+		if (ch === endChar) break;
+		else if (ch === escCharacter) escaped = true;
+		else token += ch;
+	    }
 	}
 
 	result.token = token;
 	return result;
     }
     
+    // Read in an atom as a token from the stream. 
+    // Record an error if it is illegally terminated, typically by punctuation or string quotation ("). 
+    //
     var readAtom = function()
     {
 	var result = getTokenResult('ATOM');
 	var token = '';
 
 	var ch = nextChar();
-	while (!atEOS() && !isWhiteSpace(ch) && !isBracket(ch) &&!isPunctuation(ch))
+	while (!atEOS() && !isWhiteSpace(ch) && !isBracket(ch) && !isComment(ch))
 	{
+	    if (isPunctuation(ch) || isString(ch))
+	    {
+		result.error = 'Illegal character (' + ch + ') encountered.  Missing a space?';
+		break;
+	    }
+
 	    pop();
 	    token += ch;
 	    ch = nextChar();
@@ -123,8 +159,8 @@ var makeTokenizer = function(s)
 	    skipWhiteSpace();
 	    ch = nextChar();
 
-	    if (ch === '"') result = readTo('"', 'STRING', false);
-	    else if (ch === ';') result = readTo('\n', 'COMMENT', true);
+	    if (isString(ch)) result = readTo('"', 'STRING', '\\', false);
+	    else if (isComment(ch)) result = readTo('\n', 'COMMENT', null, true);
 	    else if (isPunctuation(ch)) result = readChar('PUNCTUATION');
 	    else if (isBracket(ch)) result = readChar('BRACKET');
 	    else result = readAtom();
@@ -134,7 +170,8 @@ var makeTokenizer = function(s)
     };
 }
 
-
+//
+// 
 var tokenize = function(s)
 {
     var t = makeTokenizer(s);
