@@ -27,6 +27,10 @@ var makeTokenizer = function(s)
     //
     var isBracket = function(ch) { return '()[]{}'.indexOf(ch) > -1; }
 
+    // Is 'ch' a reserved punctuation character?
+    //
+    var isPunctuation = function(ch) { return "'`,@#~:".indexOf(ch) > -1; }
+
     // is 'ch' a space, tab or end-of-line character.  Tabs are assumed to be 4 chars wide.
     //
     var isWhiteSpace = function(ch) { return ' \t\n\r'.indexOf(ch) > -1; }
@@ -68,7 +72,7 @@ var makeTokenizer = function(s)
 	return result;
     }
 
-    var readTo = function(endChar, type)
+    var readTo = function(endChar, type, EOSok)
     {
 	// TODO: Add ability to escape certain sequences, e.g. \" -> "
 	//
@@ -76,8 +80,14 @@ var makeTokenizer = function(s)
 	var token = '';
 
 	pop();
-	while (!atEOS())
+	while (true)
 	{
+	    if (atEOS())
+	    {
+		if (!EOSok) result.error = "Unexpected end-of-stream."
+		break;
+	    }
+
 	    var ch = pop();
 	    if (ch === endChar) break;
 	    token += ch;
@@ -93,7 +103,7 @@ var makeTokenizer = function(s)
 	var token = '';
 
 	var ch = nextChar();
-	while (!atEOS() && !isWhiteSpace(ch) && !isBracket(ch))
+	while (!atEOS() && !isWhiteSpace(ch) && !isBracket(ch) &&!isPunctuation(ch))
 	{
 	    pop();
 	    token += ch;
@@ -113,10 +123,9 @@ var makeTokenizer = function(s)
 	    skipWhiteSpace();
 	    ch = nextChar();
 
-	    if (ch === '"') result = readTo('"', 'STRING');
-	    else if (ch === ';') result = readTo('\n', 'COMMENT');
-	    else if (ch === "'") result = readChar('QUOTE');
-	    else if (ch === ',') result = readChar('QUASIQUOTE');
+	    if (ch === '"') result = readTo('"', 'STRING', false);
+	    else if (ch === ';') result = readTo('\n', 'COMMENT', true);
+	    else if (isPunctuation(ch)) result = readChar('PUNCTUATION');
 	    else if (isBracket(ch)) result = readChar('BRACKET');
 	    else result = readAtom();
 	
@@ -137,8 +146,6 @@ var tokenize = function(s)
 
     return result;
 }
-
-
 
 
 //--------------------------------------------------------------------------------
