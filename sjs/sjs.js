@@ -136,7 +136,7 @@ var evaluate = function(x, env)
 // Parsing
 //--------------------------------------------------------------------------------
 
-//
+// Tokenize and parse a string.
 //
 var parse=function(s)
 {
