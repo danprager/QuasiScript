@@ -46,7 +46,7 @@ exports.testTokenize = function(test)
 // Parsing
 //--------------------------------------------------------------------------------
 
-exports.testParsing = function(test)
+exports.testParse = function(test)
 {
     var p = qs.parse(''); test.ok(p.error);
     p = qs.parse('('); test.ok(p.error);
@@ -54,6 +54,18 @@ exports.testParsing = function(test)
     p = qs.parse('(]'); test.ok(p.error);
     p = qs.parse('(('); test.ok(p.error);
 
+// TODO: Include some positive tests of parsing.
+
+    test.done();
+}
+
+//--------------------------------------------------------------------------------
+// Compiling
+//--------------------------------------------------------------------------------
+exports.testCompile = function(test)
+{
+    var p = qs.parse('(def number 42)');
+    test.equal(qs.compile(p.exp), 'var number;\nnumber = 42;');
 
     test.done();
 }
@@ -61,10 +73,22 @@ exports.testParsing = function(test)
 //--------------------------------------------------------------------------------
 // Matching CoffeeScript
 //--------------------------------------------------------------------------------
-/*
-exports.testAssignment = function(test)
+
+exports.testDeclaration = function(test)
 {
-    test.equal(qs.run('(= number 42)'), 42);
+    test.equal(qs.run('(def number 42)'), 42);
+    test.equal(qs.run('(def opposite true)'), true);
     test.done();
 }
-*/
+
+exports.testDo = function(test)
+{
+    var p = 
+'(do (def number 42) \
+     (def opposite true) \
+     (if opposite \
+         (= number -42)))';
+
+    test.equal(qs.run(p), -42);
+    test.done();
+}

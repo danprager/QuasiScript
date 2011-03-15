@@ -52,6 +52,26 @@ var matchingBracket = function(ch)
     }
 }
 
+// The special forms of our Lisp
+// 
+var isDeclaration = function (arg) { return arg == 'def'; } // Scheme: 'define'
+var isAssignment = function (arg) { return arg == '='; }  // Scheme: 'set!'
+var isConditional = function (arg) { return arg == 'if'; }
+var isLambda = function (arg) { return arg == 'fn'; }     // Scheme: 'lambda'
+var isSequence = function (arg) { return arg == 'do'; }    // Scheme: 'begin'
+var isQuotation = function (arg) { return arg == 'quote'; }
+
+//--------------------------------------------------------------------------------
+// Utility function
+//--------------------------------------------------------------------------------
+
+// Lists are arrays.
+//
+var isList = function(a) { return toString.call(a) === '[object Array]'; };
+var first = function(a) { return a[0]; }
+
+var rest = function(a) { return a.slice(1); }
+
 //--------------------------------------------------------------------------------
 // Error reporting
 //--------------------------------------------------------------------------------
@@ -242,7 +262,7 @@ var parse = function(s)
 var readFrom = function(tokenizer, oneAhead)
 {
     var result = oneAhead || tokenizer.next();
-    var u, L;
+    var u, v, L;
 
     var bracketError = function(b, type, message, inner)
     {
@@ -272,8 +292,17 @@ var readFrom = function(tokenizer, oneAhead)
 		    break;
 		}
 		
-		L.push(readFrom(tokenizer, u));
-		u = tokenizer.next();
+		v = readFrom(tokenizer, u);
+
+		if (v.error)
+		{ 
+		    u = v;
+		}
+		else
+		{
+		    L.push(v);
+		    u = tokenizer.next();
+		}
 	    }
 	
 	    if (!result.error) result = L;
@@ -324,7 +353,162 @@ var atom = function(s)
 }
 
 //--------------------------------------------------------------------------------
+// Compile from Lisp to JavaScript
+//--------------------------------------------------------------------------------
+
+
+// Convert expression 'x' into JavaScript.
+//
+var compile = function(exp)
+{
+    var result = '';
+    var body = [];
+    var vars = []; 
+    var arg;
+
+    var hoist = function(v)
+    {
+	if (vars.indexOf(v) == -1) vars.push(v);
+    }
+
+    var assign = function(target, value)
+    {
+	body.push(translate(target.token) + ' = ' + compile(value) + ';');
+    }
+
+    var seqForm = function(seq)
+    {
+	body.push('function() {');
+	for (var i=0; i<seq.length-1; i++) body.push(compile(seq[i]));
+	body.push('return ' + compile(seq[i]) + ' }();');
+    }
+
+    var condForm = function(seq)
+    {
+	body.push('function() {');
+	body.push('if (' + compile(seq[0]) + ') {');
+	body.push('return ' + compile(seq[1]) + ' }');
+	if (seq.length === 3)
+	{
+	    body.push('else {');
+	    body.push('return ' + compile(seq[2]) + ' }');
+	}
+	body.push('} ();');
+    }
+
+    if (isList(exp))
+    {
+	if (exp.length == 0) {}	    // TODO: Is this an error?
+	else
+	{
+	    arg = exp[0].token;
+	    if (isDeclaration(arg))
+	    {
+		// TODO: error if there aren't 2 or 3 arguments
+		// TODO: error if exp[1] cannot be declared, or has already been declared
+		// TODO: error if exp[2] expands to an invalid form, e.g. an assignment 
+		hoist(exp[1].token);
+		if (exp.length == 3) assign(exp[1], exp[2]);
+	    }
+	    else if (isAssignment(arg))
+	    {
+		// TODO: error if there aren't 3 arguments
+		// TODO: error if exp[1] cannot be assigned to
+		// TODO: error if exp[2] expands to an invalid form, e.g. an assignment or a declaration
+		assign(exp[1], exp[2]);
+	    }
+	    else if (isSequence(arg))
+	    {
+		// TODO: error if there aren't > 1 argument
+		seqForm(rest(exp));
+	    }
+	    else if (isConditional(arg))
+	    {
+		// TODO: error if there aren't 3 or more arguments
+		// TODO: implement the arc else-if pattern for 5+ arguments
+		condForm(rest(exp));
+	    }
+//
+// TODO: Other special forms
+//
+	    else if (isMacro(arg)) result = expandMacro(arg); // TODO: Macro-expansion
+	    else {} // TODO: Procedure call
+	}
+    }
+    else
+    {
+	body.push(translate(exp.token));     // TODO: Translate token, add error-checking
+    }
+
+    // Declare the hoisted variables at the top of the scope.
+    // TODO: Sort out lexical scoping rules.
+    if (vars.length > 0)
+    {
+	vars.sort();
+	result = 'var ' + vars.join(', ') + ';\n';
+    }
+
+    result += body.join('\n');
+
+    return result;
+}
+
+
+var isMacro = function (arg)
+{
+    return false;   // No macros yet
+}
+
+var translate = function (arg)
+{
+    return arg; // TODO: Translate lispy tokens to valid JS
+}
+
+/*   
+    if (isList(x) && x.length > 0)  // Special forms: [quote, if, ...], or default is a proc
+    {
+	switch(first(x)) 
+	{
+	case 'quote':                         // (quote exp) 
+	    result = x[1]; break;
+	case 'if':                            // (if test conseq alternative)
+	    result = evaluate(evaluate(x[1], env) ? x[2] : x[3], env); break;
+	case 'define':                        // (define var exp)
+	    env.symbols[x[1]] = evaluate(x[2], env); break;
+	case 'set!':                          // (set! var exp)
+	    env.find(x[1])[x[1]] = evaluate(x[2], env); break;
+	case 'lambda':                        // (lambda (var*) exp)
+	    result = function () 
+	    {  var args = Array.prototype.slice.call(arguments);
+	       return evaluate(x[2], makeEnv(x[1], args, env));
+	    }; break;
+	case 'begin':                         // (begin exp*)
+	    for(i=1; i<x.length; i++) result = evaluate(x[i], env); 
+	    break;
+	default:                              // (proc exp*)
+	    exps = map(x, function(a) { return evaluate(a, env); });
+	    result = first(exps).apply(null, rest(exps));
+	}
+    }
+    
+*/
+
+//--------------------------------------------------------------------------------
+// Evaluation
+//--------------------------------------------------------------------------------
+
+var run = function (s)
+{
+    var c = compile(parse(s).exp);
+    console.log(c);
+
+    return eval(c);
+}
+
+//--------------------------------------------------------------------------------
 // Exports
 //--------------------------------------------------------------------------------
 exports.makeTokenizer = makeTokenizer;
 exports.parse = parse;
+exports.compile = compile;
+exports.run = run;
