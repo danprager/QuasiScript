@@ -96,9 +96,30 @@ exports.testDo = function(test)
 exports.testFn = function(test)
 {
     var p =
-'(def sqr (fn (x) \
+'(def sqr (fun (x) \
               (* x x))) \
  (sqr 5)';
     test.equal(qs.run(p), 25);
+    test.done();
+}
+
+exports.testArray = function(test)
+{
+    var p = qs.parse('(array 1 2 3 4 5)');
+    test.equal(qs.compile(p.exp).indexOf('[1, 2, 3, 4, 5]'), 0);
+    test.done();
+}
+
+exports.testObject = function(test)
+{
+    var p = 
+'(def square (fun (x) (* x x))) \
+(def m (object \
+           root   Math.sqrt \
+           square square \
+           cube   (fun (x) (* x (square x))))) \
+(m.root 9)';
+
+    test.equal(qs.run(p), 3);
     test.done();
 }

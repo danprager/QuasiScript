@@ -57,9 +57,11 @@ var matchingBracket = function(ch)
 var isDeclaration = function (arg) { return arg == 'def'; } // Scheme: 'define'
 var isAssignment = function (arg) { return arg == '='; }  // Scheme: 'set!'
 var isWhen = function (arg) { return arg == 'when'; }
-var isLambda = function (arg) { return arg == 'fn'; }     // Scheme: 'lambda'
+var isLambda = function (arg) { return arg == 'fun'; }     // Scheme: 'lambda'
 var isSequence = function (arg) { return arg == 'do'; }    // Scheme: 'begin'
-var isQuotation = function (arg) { return arg == 'quote'; }
+var isArray = function (arg) { return arg == 'array'; }
+var isObject = function (arg) { return arg == 'object'; }
+var isQuote = function (arg) { return arg == 'quote'; }
 
 // Binary operators
 var binaryOperator = { '+': '+', '-':'-', '*':'*', '/': '/',
@@ -481,15 +483,6 @@ var comp = function comp(exp, env)
 	comp(value, env);
     }
 
-    var declare = function(target, value)
-    {
-	env.symbols[target] = 'VARIABLE';
-
-	out('var ');
-	if (value) assign(target, value);
-	else out(translate(target.token));
-    }
-
     var seqForm = function(seq, implicitReturn)
     {
 	out('{ ');
@@ -498,22 +491,16 @@ var comp = function comp(exp, env)
 	var i=0;
 	while(true)
 	{
-	    newLine();
 	    if (implicitReturn && i === seq.length-1) out('return ');
 	    comp(seq[i], env);
 	    out(';');
 	    i++;
 	    if (i === seq.length) break;
+	    newLine();
 	}
 
 	out(' }');
 	unindent();
-    }
-
-    var whenForm = function(test, actions)
-    {
-	out('if (');  comp(test, env); out(') ');
-	seqForm(actions);
     }
 
     var lambdaForm = function(args, body)
@@ -526,8 +513,12 @@ var comp = function comp(exp, env)
 	seqForm(body, true);  
     }
 
-    var intersperse = function(inter, seq)
+    var intersperse = function(inter, seq, left, right)
     {
+	left = left || '';
+	right = right || '';
+
+	out(left);
 	var i=0;
 	while(true)
 	{
@@ -536,13 +527,25 @@ var comp = function comp(exp, env)
 	    if (i == seq.length) break;
 	    out(inter);
 	}
+	out(right);
     }
 
-    var expandBinary = function(op, args)
+    var objectForm = function(seq)
     {
-	out('(');
-	intersperse(op, args);
-	out(')');
+	out('{');
+	indent();  newLine();
+	var i=0;
+	while(true)
+	{
+	    out(translate(seq[i].token)); // TODO: quote where appropriate 
+	    out(': ');
+	    comp(seq[i+1], env);
+	    i+= 2;
+	    if (i >= seq.length) break;
+	    out(','); newLine();
+	}
+	unindent();  newLine();
+	out('}');
     }
 
     if (isList(exp))
@@ -556,7 +559,10 @@ var comp = function comp(exp, env)
 		// TODO: error if there aren't 2 or 3 arguments
 		// TODO: error if exp[1] cannot be declared, or has already been declared
 		// TODO: error if exp[2] expands to an invalid form, e.g. an assignment 
-		declare(exp[1], exp[2]);
+		env.symbols[exp[1]] = 'VARIABLE';
+		out('var ');
+		if (exp.length == 2) out(translate(exp[1].token))
+		else assign(exp[1], exp[2]);
 	    }
 	    else if (isAssignment(arg))
 	    {
@@ -573,22 +579,40 @@ var comp = function comp(exp, env)
 	    else if (isWhen(arg))
 	    {
 		// TODO: error if there aren't 3 or more arguments
-		whenForm(exp[1], drop(2, exp));
+		out('if (');  comp(exp[1], env); out(') ');
+		seqForm(drop(2, exp));
 	    }
 	    else if (isLambda(arg))
 	    {
 		// TODO: error if there aren't at least 3 arguments
 		// TODO: error if exp[1] isn't a list of arguments
 		lambdaForm(exp[1], drop(2, exp));
+	    } 	   
+	    else if (isArray(arg))
+	    {
+		// TODO: error if any arguments aren't expressions
+		intersperse(', ', rest(exp), '[', ']');
+	    }
+	    else if (isObject(arg))
+	    {
+		// TODO: error if total # arguments isn't odd
+		// TODO: error if there are duplicate keys
+		// TODO: keys which are not valid names get quoted, including reserved words
+		// TODO: keys which are lists are errors
+		// TODO: all values must be expressions
+		objectForm(rest(exp));
 	    }
 //
 // TODO: Other special forms
 //
-	    else if (isMacro(arg)) result = expandMacro(arg); // TODO: Macro-expansion
+	    else if (isMacro(arg)) 
+	    {
+		expandMacro(arg); // TODO: Macro-expansion
+	    }
 	    else if (isBinaryOperator(arg))
 	    {
-		// TODO: Error if < 4 arguments
-		expandBinary(binaryOperator[arg], rest(exp));
+		// TODO: Error if < 3 arguments
+		intersperse(binaryOperator[arg], rest(exp), '(', ')');
 	    }
 	    else // TODO: Procedure call
 	    {		
