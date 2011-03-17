@@ -61,8 +61,13 @@ var isLambda = function (arg) { return arg == 'fn'; }     // Scheme: 'lambda'
 var isSequence = function (arg) { return arg == 'do'; }    // Scheme: 'begin'
 var isQuotation = function (arg) { return arg == 'quote'; }
 
+// Binary operators
+var binaryOperator = { '+': '+', '-':'-', '*':'*', '/': '/',
+		       'and': '&&', 'or': '||' };
+
+var isBinaryOperator = function(arg) { return arg in binaryOperator };
 //--------------------------------------------------------------------------------
-// Utility function
+// Utility functions
 //--------------------------------------------------------------------------------
 
 // Lists are arrays.
@@ -72,6 +77,23 @@ var first = function(a) { return a[0]; }
 
 var rest = function(a) { return a.slice(1); }
 var drop = function(n, a) { return a.slice(n); }
+
+// Use underscore library instead?
+//
+var map = function(arr, fn)
+{
+    var result, i;
+    
+    for(i=0, result=[]; i<arr.length; i++) 
+	result.push(fn(arr[i]));
+
+    return result;
+}
+
+var each = function(arr, fn)
+{  
+    for(var i=0; i<arr.length; i++) fn(arr[i]);
+}
 
 //--------------------------------------------------------------------------------
 // Error reporting
@@ -464,16 +486,22 @@ var comp = function comp(exp, env)
 	else out(translate(target.token));
     }
 
-    var seqForm = function(seq)
+    var seqForm = function(seq, implicitReturn)
     {
 	out('{ ');
 	indent();
-	for (var i=0; i<seq.length; i++) 
-	{  
+
+	var i=0;
+	while(true)
+	{
 	    newLine();
+	    if (implicitReturn && i === seq.length-1) out('return ');
 	    comp(seq[i], env);
-	    out(';'); 
+	    out(';');
+	    i++;
+	    if (i === seq.length) break;
 	}
+
 	out(' }');
 	unindent();
     }
@@ -482,6 +510,35 @@ var comp = function comp(exp, env)
     {
 	out('if (');  comp(test, env); out(') ');
 	seqForm(actions);
+    }
+
+    var lambdaForm = function(args, body)
+    {
+	out('function(');
+	out(map(args, function(x) { return translate(x.token); }).join(', '));
+	out(') ');
+
+	// TODO: Introduce new scope.  Handle return.
+	seqForm(body, true);  
+    }
+
+    var intersperse = function(inter, seq)
+    {
+	var i=0;
+	while(true)
+	{
+	    comp(seq[i], env);
+	    i++;
+	    if (i == seq.length) break;
+	    out(inter);
+	}
+    }
+
+    var expandBinary = function(op, args)
+    {
+	out('(');
+	intersperse(op, args);
+	out(')');
     }
 
     if (isList(exp))
@@ -514,11 +571,27 @@ var comp = function comp(exp, env)
 		// TODO: error if there aren't 3 or more arguments
 		whenForm(exp[1], drop(2, exp));
 	    }
+	    else if (isLambda(arg))
+	    {
+		// TODO: error if there aren't at least 3 arguments
+		// TODO: error if exp[1] isn't a list of arguments
+		lambdaForm(exp[1], drop(2, exp));
+	    }
 //
 // TODO: Other special forms
 //
 	    else if (isMacro(arg)) result = expandMacro(arg); // TODO: Macro-expansion
-	    else {} // TODO: Procedure call
+	    else if (isBinaryOperator(arg))
+	    {
+		// TODO: Error if < 4 arguments
+		expandBinary(binaryOperator[arg], rest(exp));
+	    }
+	    else // TODO: Procedure call
+	    {		
+		out(translate(arg) + '(');
+		intersperse(', ', rest(exp));
+		out(')');
+	    } 
 	}
     }
     else

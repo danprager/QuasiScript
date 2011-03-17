@@ -92,3 +92,13 @@ exports.testDo = function(test)
     test.equal(qs.run(p), -42);
     test.done();
 }
+
+exports.testFn = function(test)
+{
+    var p =
+'(do (def sqr (fn (x) \
+              (* x x))) \
+     (sqr 5))';
+    test.equal(qs.run(p), 25);
+    test.done();
+}
