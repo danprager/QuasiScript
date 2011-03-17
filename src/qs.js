@@ -56,7 +56,7 @@ var matchingBracket = function(ch)
 // 
 var isDeclaration = function (arg) { return arg == 'def'; } // Scheme: 'define'
 var isAssignment = function (arg) { return arg == '='; }  // Scheme: 'set!'
-var isConditional = function (arg) { return arg == 'if'; }
+var isWhen = function (arg) { return arg == 'when'; }
 var isLambda = function (arg) { return arg == 'fn'; }     // Scheme: 'lambda'
 var isSequence = function (arg) { return arg == 'do'; }    // Scheme: 'begin'
 var isQuotation = function (arg) { return arg == 'quote'; }
@@ -71,6 +71,7 @@ var isList = function(a) { return toString.call(a) === '[object Array]'; };
 var first = function(a) { return a[0]; }
 
 var rest = function(a) { return a.slice(1); }
+var drop = function(n, a) { return a.slice(n); }
 
 //--------------------------------------------------------------------------------
 // Error reporting
@@ -257,7 +258,7 @@ var parse = function(s)
 
 // Convert a list of tokens into nested arrays.
 //
-// 'oneAhead' is an optional parameter that's used by readFrom in recursive calls when 
+// 'oneAhead' is an optional parameter that's used by readFrom in recursive calls 
 //
 var readFrom = function(tokenizer, oneAhead)
 {
@@ -353,47 +354,134 @@ var atom = function(s)
 }
 
 //--------------------------------------------------------------------------------
+// Environments
+//--------------------------------------------------------------------------------
+
+// An environment consists of a dictionary of 'symbols', plus a reference to an 'outer' environment.
+//
+var makeEnv = function(params, args, outer) 
+{
+    params = params || []; 
+    args = args || []; 
+    var symbols = {}, i;
+
+    for (i = 0; i<params.length; i++) { symbols[params[i]] = args[i]; }
+
+    return { symbols: symbols, 
+	     outer: outer, 
+	     find: function(sym) { return sym in this.symbols ? this.symbols : this.outer.find(sym); }
+	   }
+}
+
+// Set up some standard scheme procedures in the environment 'env'.
+//
+var setGlobals = function(env)
+{
+    env.symbols = {};
+/*	'+': function(a,b) { return a+b; },
+	'-': function(a,b) { return a-b; },
+	'*': function(a,b) { return a*b; },
+	'/': function(a,b) { return a/b; },
+	'not': function(a) { return !a; },
+	'>': function(a,b) { return a>b; },
+	'<': function(a,b) { return a<b; },
+	'>=': function(a,b) { return a>=b; },
+	'<=': function(a,b) { return a<=b; },
+	'=': function(a,b) { return a===b; },
+	'equal?': function(a,b) { return a===b; },
+	'length': function(a) { return a.length; },
+	'cons': function(a,b) { return b.unshift(a); },
+	'car': first,
+	'cdr': rest,
+	'append': function(a,b) { return a.concat(b); },
+	'list' : function() { return Array.prototype.slice.call(arguments); },
+	'empty?' : function(a) { return a.length === 0; },
+	'null?': function(a) { return a===null; },
+	'list?': function(a) { return isList(a); },
+	'symbol?': function(a) { return isSymbol(a); } };
+*/
+    return env;
+}
+
+var $globalEnv$ = setGlobals(makeEnv());
+
+
+//--------------------------------------------------------------------------------
 // Compile from Lisp to JavaScript
 //--------------------------------------------------------------------------------
 
+// Pretty printing helpers
+//
+var code;                // This is where we accumulate the JavaScript
+var startOfLine;         // Are we at the start of a line;
+var indentation;         // Number of spaces to indent at the start of each line
+var newLine = function() { code += '\n'; startOfLine = true; }
+var indent = function() { indentation = indentation + '  '; }
+var unindent = function() { indentation = indentation.slice(2); }
+var out = function(s) 
+{ if (startOfLine)
+  { 
+      startOfLine = false;
+      code += indentation;
+  }
+  code += s; 
+}
 
 // Convert expression 'x' into JavaScript.
 //
 var compile = function(exp)
 {
-    var result = '';
-    var body = [];
-    var vars = []; 
+    startOfLine = false;
+    indentation = '';
+    code = '';
+
+    comp(exp, $globalEnv$);
+
+    return code;
+}
+
+// Detailed compilation into JS.
+//
+// 'exp' is the parse tree.
+// 'env' is the environment (for enforcing scoping rules)
+//
+var comp = function comp(exp, env)
+{
     var arg;
-
-    var hoist = function(v)
-    {
-	if (vars.indexOf(v) == -1) vars.push(v);
-    }
-
+ 
     var assign = function(target, value)
     {
-	body.push(translate(target.token) + ' = ' + compile(value) + ';');
+	out(translate(target.token) + ' = ');
+	comp(value, env);
+    }
+
+    var declare = function(target, value)
+    {
+	env.symbols[target] = 'VARIABLE';
+
+	out('var ');
+	if (value) assign(target, value);
+	else out(translate(target.token));
     }
 
     var seqForm = function(seq)
     {
-	body.push('function() {');
-	for (var i=0; i<seq.length-1; i++) body.push(compile(seq[i]));
-	body.push('return ' + compile(seq[i]) + ' }();');
+	out('{ ');
+	indent();
+	for (var i=0; i<seq.length; i++) 
+	{  
+	    newLine();
+	    comp(seq[i], env);
+	    out(';'); 
+	}
+	out(' }');
+	unindent();
     }
 
-    var condForm = function(seq)
+    var whenForm = function(test, actions)
     {
-	body.push('function() {');
-	body.push('if (' + compile(seq[0]) + ') {');
-	body.push('return ' + compile(seq[1]) + ' }');
-	if (seq.length === 3)
-	{
-	    body.push('else {');
-	    body.push('return ' + compile(seq[2]) + ' }');
-	}
-	body.push('} ();');
+	out('if (');  comp(test, env); out(') ');
+	seqForm(actions);
     }
 
     if (isList(exp))
@@ -407,8 +495,7 @@ var compile = function(exp)
 		// TODO: error if there aren't 2 or 3 arguments
 		// TODO: error if exp[1] cannot be declared, or has already been declared
 		// TODO: error if exp[2] expands to an invalid form, e.g. an assignment 
-		hoist(exp[1].token);
-		if (exp.length == 3) assign(exp[1], exp[2]);
+		declare(exp[1], exp[2]);
 	    }
 	    else if (isAssignment(arg))
 	    {
@@ -422,11 +509,10 @@ var compile = function(exp)
 		// TODO: error if there aren't > 1 argument
 		seqForm(rest(exp));
 	    }
-	    else if (isConditional(arg))
+	    else if (isWhen(arg))
 	    {
 		// TODO: error if there aren't 3 or more arguments
-		// TODO: implement the arc else-if pattern for 5+ arguments
-		condForm(rest(exp));
+		whenForm(exp[1], drop(2, exp));
 	    }
 //
 // TODO: Other special forms
@@ -437,20 +523,8 @@ var compile = function(exp)
     }
     else
     {
-	body.push(translate(exp.token));     // TODO: Translate token, add error-checking
+	out(translate(exp.token));     // TODO: Translate token, add error-checking
     }
-
-    // Declare the hoisted variables at the top of the scope.
-    // TODO: Sort out lexical scoping rules.
-    if (vars.length > 0)
-    {
-	vars.sort();
-	result = 'var ' + vars.join(', ') + ';\n';
-    }
-
-    result += body.join('\n');
-
-    return result;
 }
 
 
@@ -499,8 +573,10 @@ var translate = function (arg)
 
 var run = function (s)
 {
+    console.log('----');
     var c = compile(parse(s).exp);
     console.log(c);
+    console.log('----');
 
     return eval(c);
 }
