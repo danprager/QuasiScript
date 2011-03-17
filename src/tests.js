@@ -65,7 +65,7 @@ exports.testParse = function(test)
 exports.testCompile = function(test)
 {
     var p = qs.parse('(def number 42)');
-    test.equal(qs.compile(p.exp), 'var number = 42');
+    test.equal(qs.compile(p.exp).indexOf('var number = 42'), 0);
 
     test.done();
 }
@@ -76,8 +76,8 @@ exports.testCompile = function(test)
 
 exports.testDeclaration = function(test)
 {
-    test.equal(qs.run('(do (def number 42) number)'), 42);
-    test.equal(qs.run('(do (def opposite true) opposite)'), true);
+    test.equal(qs.run('(def number 42) number'), 42);
+    test.equal(qs.run('(def opposite true) opposite'), true);
     test.done();
 }
 
@@ -96,9 +96,9 @@ exports.testDo = function(test)
 exports.testFn = function(test)
 {
     var p =
-'(do (def sqr (fn (x) \
+'(def sqr (fn (x) \
               (* x x))) \
-     (sqr 5))';
+ (sqr 5)';
     test.equal(qs.run(p), 25);
     test.done();
 }

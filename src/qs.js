@@ -233,6 +233,7 @@ var makeTokenizer = function(s)
     }
 
     return { 
+	eos: atEOS,
 	next: function()
 	{
 	    skipWhiteSpace();
@@ -263,17 +264,19 @@ var makeTokenizer = function(s)
 
 // Tokenize and parse a string.
 //
-// Note: Currently only grabs the first complete expression.  TODO: Process subsequent expressions.
-//
 var parse = function(s)
 {
     var t = makeTokenizer(s);
 
-    var result = {};
-    var r = readFrom(t);
+    var result = { exp: [], error: '' };
+    
+    do
+    {
+	var r = readFrom(t);
 
-    if (r.error) result.error = r;
-    else result.exp = r;
+	if (r.error) result.error = r;
+	else result.exp.push(r);
+    } while (!t.eos() && !result.error);
     
     return result;
 }
@@ -291,7 +294,6 @@ var readFrom = function(tokenizer, oneAhead)
     {
 	return reportError(b.line, b.column, type + ' bracket "' + b.token + '" ' + message, inner);
     }
-
 
     if (!result.error)
     {
@@ -425,8 +427,6 @@ var setGlobals = function(env)
     return env;
 }
 
-var $globalEnv$ = setGlobals(makeEnv());
-
 
 //--------------------------------------------------------------------------------
 // Compile from Lisp to JavaScript
@@ -449,15 +449,19 @@ var out = function(s)
   code += s; 
 }
 
-// Convert expression 'x' into JavaScript.
+// Convert array of expressions into JavaScript.
 //
-var compile = function(exp)
+var compile = function(exps)
 {
     startOfLine = false;
     indentation = '';
     code = '';
 
-    comp(exp, $globalEnv$);
+    var globalEnv = setGlobals(makeEnv());
+
+    each(exps, function(x) { 
+	comp(x, globalEnv); 
+	out(';'); newLine(); });
 
     return code;
 }
