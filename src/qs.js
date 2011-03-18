@@ -59,8 +59,9 @@ var isAssignment = function (arg) { return arg == '='; }  // Scheme: 'set!'
 var isWhen = function (arg) { return arg == 'when'; }
 var isLambda = function (arg) { return arg == 'fun'; }     // Scheme: 'lambda'
 var isSequence = function (arg) { return arg == 'do'; }    // Scheme: 'begin'
-var isArray = function (arg) { return arg == 'array'; }
-var isObject = function (arg) { return arg == 'object'; }
+var isArray = function (arg) { return arg == 'array'; }    // JavaScript: [ 1, 2, ... ]
+var isObject = function (arg) { return arg == 'object'; }  // JavaScript: { k1: v1, k2: v2, ... } 
+var isExists = function (arg) { return arg == 'exists?'; } // CoffeeScript: ? operator
 var isQuote = function (arg) { return arg == 'quote'; }
 
 // Binary operators
@@ -624,6 +625,14 @@ var comp = function comp(exp, env)
 		// TODO: keys which are lists are errors
 		// TODO: all values must be expressions
 		objectForm(rest(exp));
+	    }
+	    else if (isExists(arg))
+	    {
+		// TODO: error if not 2 args
+		// TODO: error if not exp[1] isn't a declared variable
+		// TODO: rewrite as a macro
+		var exArg = translate(exp[1].token);
+		out(['typeof', exArg, '!== "undefined" &&', exArg,'!== null'].join(' '));
 	    }
 //
 // TODO: Other special forms

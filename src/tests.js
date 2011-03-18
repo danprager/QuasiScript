@@ -134,3 +134,10 @@ exports.testRestParameters = function(test)
     test.equal(qs.run(p), 5);
     test.done();
 }
+
+exports.testExistentialOperator = function(test)
+{
+    test.ok(qs.run('(def a 5) (exists? a)'));
+    test.equal(qs.run('(exists? b)'), false);
+    test.done();
+}
