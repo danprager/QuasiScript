@@ -483,10 +483,15 @@ var comp = function comp(exp, env)
 	comp(value, env);
     }
 
-    var seqForm = function(seq, implicitReturn)
+    var seqForm = function(seq, implicitReturn, prepend)
     {
 	out('{ ');
 	indent();
+
+	if (prepend)
+	{
+	    out(prepend);  newLine();
+	}
 
 	var i=0;
 	while(true)
@@ -505,12 +510,30 @@ var comp = function comp(exp, env)
 
     var lambdaForm = function(args, body)
     {
+	var rest;
+
 	out('function(');
-	out(map(args, function(x) { return translate(x.token); }).join(', '));
+	for (var i=0; i<args.length; i++)
+	{
+	    var tok = args[i].token;
+	    if (tok == '.')
+	    {
+		// TODO: Error if there's not exactly one argument remaining
+		rest = 'var ' + translate(args[i+1].token) + ' =  Array.prototype.slice.call(arguments, '+ i +');';
+		break;
+	    }
+	    else
+	    {
+		if (i > 0) out(', ');
+		out(translate(tok));
+	    }
+	}
 	out(') ');
 
-	// TODO: Introduce new scope.  Handle return.
-	seqForm(body, true);  
+	// TODO: Introduce new scope
+	// TODO: Handle rest parameter
+
+	seqForm(body, true, rest);  
     }
 
     var intersperse = function(inter, seq, left, right)

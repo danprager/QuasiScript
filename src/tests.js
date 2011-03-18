@@ -123,3 +123,14 @@ exports.testObject = function(test)
     test.equal(qs.run(p), 3);
     test.done();
 }
+
+exports.testRestParameters = function(test)
+{
+    var p = 
+'(def args (fun (x y . z) \
+              (+ 2 z.length))) \
+(args 1 2 3 4 5)';
+
+    test.equal(qs.run(p), 5);
+    test.done();
+}
