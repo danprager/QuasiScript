@@ -64,7 +64,7 @@ exports.testParse = function(test)
 //--------------------------------------------------------------------------------
 exports.testCompile = function(test)
 {
-    var p = qs.parse('(def number 42)');
+    var p = qs.parse('(var number 42)');
     test.equal(qs.compile(p.exp).indexOf('var number = 42'), 0);
 
     test.done();
@@ -76,16 +76,16 @@ exports.testCompile = function(test)
 
 exports.testDeclaration = function(test)
 {
-    test.equal(qs.run('(def number 42) number'), 42);
-    test.equal(qs.run('(def opposite true) opposite'), true);
+    test.equal(qs.run('(var number 42) number'), 42);
+    test.equal(qs.run('(var opposite true) opposite'), true);
     test.done();
 }
 
 exports.testDo = function(test)
 {
     var p = 
-'(do (def number 42) \
-     (def opposite true) \
+'(do (var number 42) \
+     (var opposite true) \
      (when opposite \
          (= number -42)))';
 
@@ -96,7 +96,7 @@ exports.testDo = function(test)
 exports.testFn = function(test)
 {
     var p =
-'(def sqr (fun (x) \
+'(var sqr (fun (x) \
               (* x x))) \
  (sqr 5)';
     test.equal(qs.run(p), 25);
@@ -113,8 +113,8 @@ exports.testArray = function(test)
 exports.testObject = function(test)
 {
     var p = 
-'(def square (fun (x) (* x x))) \
-(def m (object \
+'(var square (fun (x) (* x x))) \
+(var m (object \
            root   Math.sqrt \
            square square \
            cube   (fun (x) (* x (square x))))) \
@@ -127,7 +127,7 @@ exports.testObject = function(test)
 exports.testRestParameters = function(test)
 {
     var p = 
-'(def args (fun (x y . z) \
+'(var args (fun (x y . z) \
               (+ 2 z.length))) \
 (args 1 2 3 4 5)';
 
@@ -137,7 +137,7 @@ exports.testRestParameters = function(test)
 
 exports.testExistentialOperator = function(test)
 {
-    test.ok(qs.run('(def a 5) (exists? a)'));
+    test.ok(qs.run('(var a 5) (exists? a)'));
     test.equal(qs.run('(exists? b)'), false);
     test.done();
 }
@@ -150,7 +150,7 @@ exports.testExistentialOperator = function(test)
 //
 exports.for = function(test)
 {
-    test.equal(qs.run('(def j 1) (for i 1 6 (= j (* i j)))'), 720);
+    test.equal(qs.run('(var j 1) (for i 1 6 (= j (* i j)))'), 720);
     test.done();
 }
 

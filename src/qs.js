@@ -54,7 +54,7 @@ var matchingBracket = function(ch)
 
 // The special forms of our Lisp
 // 
-var isDeclaration = function (arg) { return arg == 'def'; } // Scheme: 'define'
+var isDeclaration = function (arg) { return arg == 'var'; } // Scheme: 'define'
 var isAssignment = function (arg) { return arg == '='; }  // Scheme: 'set!'
 var isWhen = function (arg) { return arg == 'when'; }
 var isLambda = function (arg) { return arg == 'fun'; }     // Scheme: 'lambda'
