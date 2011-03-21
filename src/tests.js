@@ -141,3 +141,27 @@ exports.testExistentialOperator = function(test)
     test.equal(qs.run('(exists? b)'), false);
     test.done();
 }
+
+//--------------------------------------------------------------------------------
+// Matching arc
+//--------------------------------------------------------------------------------
+
+// Iteration operators
+//
+exports.for = function(test)
+{
+    test.equal(qs.run('(def j 1) (for i 1 6 (= j (* i j)))'), 720);
+    test.done();
+}
+
+
+// Optional arguments
+//
+
+// Currying
+//
+
+// Negation
+//
+
+// Macros

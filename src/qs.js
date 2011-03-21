@@ -62,6 +62,9 @@ var isSequence = function (arg) { return arg == 'do'; }    // Scheme: 'begin'
 var isArray = function (arg) { return arg == 'array'; }    // JavaScript: [ 1, 2, ... ]
 var isObject = function (arg) { return arg == 'object'; }  // JavaScript: { k1: v1, k2: v2, ... } 
 var isExists = function (arg) { return arg == 'exists?'; } // CoffeeScript: ? operator
+var isFor = function (arg) { return arg == 'for'; }
+var isWhile = function (arg) { return arg == 'while'; }
+var isUntil = function (arg) { return arg == 'until'; }
 var isQuote = function (arg) { return arg == 'quote'; }
 
 // Binary operators
@@ -634,6 +637,19 @@ var comp = function comp(exp, env)
 		var exArg = translate(exp[1].token);
 		out(['typeof', exArg, '!== "undefined" &&', exArg,'!== null'].join(' '));
 	    }
+	    else if (isFor(arg))
+	    {
+		// TODO: error if not at least 4 args
+		// TODO: error if 1st arg isn't a variable name
+		// TODO: error if 2nd & 3rd args
+		var forVar = translate(exp[1].token);
+		out('for(var ' + forVar +'=');
+		comp(exp[2]);
+		out('; ' + forVar + '<=');
+		comp(exp[3]);
+		out('; ' + forVar + '++) ');
+		seqForm(drop(4, exp));
+	    }
 //
 // TODO: Other special forms
 //
@@ -670,35 +686,6 @@ var translate = function (arg)
 {
     return arg; // TODO: Translate lispy tokens to valid JS
 }
-
-/*   
-    if (isList(x) && x.length > 0)  // Special forms: [quote, if, ...], or default is a proc
-    {
-	switch(first(x)) 
-	{
-	case 'quote':                         // (quote exp) 
-	    result = x[1]; break;
-	case 'if':                            // (if test conseq alternative)
-	    result = evaluate(evaluate(x[1], env) ? x[2] : x[3], env); break;
-	case 'define':                        // (define var exp)
-	    env.symbols[x[1]] = evaluate(x[2], env); break;
-	case 'set!':                          // (set! var exp)
-	    env.find(x[1])[x[1]] = evaluate(x[2], env); break;
-	case 'lambda':                        // (lambda (var*) exp)
-	    result = function () 
-	    {  var args = Array.prototype.slice.call(arguments);
-	       return evaluate(x[2], makeEnv(x[1], args, env));
-	    }; break;
-	case 'begin':                         // (begin exp*)
-	    for(i=1; i<x.length; i++) result = evaluate(x[i], env); 
-	    break;
-	default:                              // (proc exp*)
-	    exps = map(x, function(a) { return evaluate(a, env); });
-	    result = first(exps).apply(null, rest(exps));
-	}
-    }
-    
-*/
 
 //--------------------------------------------------------------------------------
 // Evaluation
