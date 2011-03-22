@@ -72,6 +72,11 @@ var binaryOperator = { '+': '+', '-':'-', '*':'*', '/': '/',
 		       'and': '&&', 'or': '||' };
 
 var isBinaryOperator = function(arg) { return arg in binaryOperator };
+
+// Syntactic sugar
+//
+var desugarBracket = { '[': 'fn', '{': 'object' };
+
 //--------------------------------------------------------------------------------
 // Utility functions
 //--------------------------------------------------------------------------------
@@ -294,7 +299,7 @@ var parse = function(s)
 var readFrom = function(tokenizer, oneAhead)
 {
     var result = oneAhead || tokenizer.next();
-    var u, v, b, L;
+    var u, v, b, desugared, L;
 
     var bracketError = function(b, type, message, inner)
     {
@@ -341,16 +346,12 @@ var readFrom = function(tokenizer, oneAhead)
 	    {
 		result = L;
 
-		// TODO: Extract this desugaring of custom-brackets and make it more configurable.
-		//
-		if (b.token === '{')  
+		// Some kinds of brackets, typically '[...]' and '{...}', are syntactic sugar for simpler forms
+		// This is where we remove the sugar.
+		var desugared = desugarBracket[b.token];
+		if (desugared)
 		{
-		    b.token = 'object';  b.type = 'ATOM'; 
-		    result.unshift(b);
-		}
-		else if (b.token === '[')
-		{
-		    b.token = 'fn';  b.type = 'ATOM'; 
+		    b.token = desugared;  b.type = 'ATOM'; 
 		    result.unshift(b);
 		}
 	    }
