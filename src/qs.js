@@ -294,7 +294,7 @@ var parse = function(s)
 var readFrom = function(tokenizer, oneAhead)
 {
     var result = oneAhead || tokenizer.next();
-    var u, v, L;
+    var u, v, b, L;
 
     var bracketError = function(b, type, message, inner)
     {
@@ -307,6 +307,7 @@ var readFrom = function(tokenizer, oneAhead)
 	{
 	    L = [];
 	    u = tokenizer.next();
+	    b = result;  // Record the bracket, in case we need to desugar it.
 	    
 	    while (u.token != matchingBracket(result.token))
 	    {
@@ -336,7 +337,23 @@ var readFrom = function(tokenizer, oneAhead)
 		}
 	    }
 	
-	    if (!result.error) result = L;
+	    if (!result.error) 
+	    {
+		result = L;
+
+		// TODO: Extract this desugaring of custom-brackets and make it more configurable.
+		//
+		if (b.token === '{')  
+		{
+		    b.token = 'object';  b.type = 'ATOM'; 
+		    result.unshift(b);
+		}
+		else if (b.token === '[')
+		{
+		    b.token = 'fn';  b.type = 'ATOM'; 
+		    result.unshift(b);
+		}
+	    }
 	}
 	else if (result.type == 'CLOSE-BRACKET')
 	{
