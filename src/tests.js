@@ -95,10 +95,10 @@ exports.testDeclaration = function(test)
     test.done();
 }
 
-exports.testDo = function(test)
+exports.testSequence = function(test)
 {
     var p = 
-'(do (var number 42) \
+'(begin (var number 42) \
      (var opposite true) \
      (when opposite \
          (= number -42)))';

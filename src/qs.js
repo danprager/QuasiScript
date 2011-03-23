@@ -29,7 +29,7 @@ var isPunctuation = function(ch) { return "'`,@#~:".indexOf(ch) > -1; }
 
 // Does 'ch' start (or end) a string?
 //
-var isString = function(ch) { return ch === '"'; }
+var isStringDelimiter = function(ch) { return ch === '"'; }
 
 // Is 'ch' a recognised opening bracket?
 //
@@ -41,33 +41,26 @@ var isCloseBracket = function(ch) { return ')]}'.indexOf(ch) > -1; }
 
 // What's the matching closing bracket for 'ch'?  Otherwise return null.
 //
-var matchingBracket = function(ch) 
-{
-    switch (ch)
-    {
-    case '(': return ')';
-    case '[': return ']';
-    case '{': return '}';
-    default: return null;
-    }
-}
+var matchingBracket = { '(':')', '[':']', '{':'}' }
 
 // The special forms of our Lisp
 // 
-var isDeclaration = function (arg) { return arg == 'var'; } // Scheme: 'define'
-var isAssignment = function (arg) { return arg == '='; }  // Scheme: 'set!'
-var isWhen = function (arg) { return arg == 'when'; }
-var isLambda = function (arg) { return arg == 'fun'; }     // Scheme: 'lambda'
-var isSequence = function (arg) { return arg == 'do'; }    // Scheme: 'begin'
-var isArray = function (arg) { return arg == 'array'; }    // JavaScript: [ 1, 2, ... ]
-var isObject = function (arg) { return arg == 'object'; }  // JavaScript: { k1: v1, k2: v2, ... } 
-var isExists = function (arg) { return arg == 'exists?'; } // CoffeeScript: ? operator
-var isFor = function (arg) { return arg == 'for'; }
-var isWhile = function (arg) { return arg == 'while'; }
-var isUntil = function (arg) { return arg == 'until'; }
-var isQuote = function (arg) { return arg == 'quote'; }
+var specialForms = {
+    'var': 'DECLARATION',
+    '=': 'ASSIGNMENT',
+    'fun': 'LAMBDA',
+    'begin': 'SEQUENCE',
+    'when': 'WHEN',
+    'array': 'ARRAY',
+    'object': 'OBJECT',
+    'exists?': 'EXISTENCE',
+    'for': 'FOR',
+    'while': 'WHILE',
+    'until': 'UNTIL',
+    'quote': 'QUOTE' }
 
 // Binary operators
+//
 var binaryOperator = { '+': '+', '-':'-', '*':'*', '/': '/',
 		       'and': '&&', 'or': '||' };
 
@@ -75,7 +68,15 @@ var isBinaryOperator = function(arg) { return arg in binaryOperator };
 
 // Syntactic sugar
 //
-var desugarBracket = { '[': 'fn', '{': 'object' };
+var desugarBracket = { 
+    '[': 'fn', 
+    '{': 'object' };
+var desugarPunctuation = {
+    "'": 'quote',
+    '`': 'quasiquote',
+    ',': 'unquote',
+    ',@': 'unquote-splicing'
+};
 
 //--------------------------------------------------------------------------------
 // Utility functions
@@ -228,7 +229,7 @@ var makeTokenizer = function(s)
 	var ch = nextChar();
 	while (!atEOS() && !isWhiteSpace(ch) && !isCloseBracket(ch) && !isComment(ch))
 	{
-	    if (isPunctuation(ch) || isString(ch) || isOpenBracket(ch))
+	    if (isPunctuation(ch) || isStringDelimiter(ch) || isOpenBracket(ch))
 	    {
 		result.error = reportError(line, column, 'Illegal character ' + ch + ' encountered.  Missing a space?');
 		break;
@@ -255,7 +256,7 @@ var makeTokenizer = function(s)
 	    {
 		var ch = nextChar();
 	
-		if (isString(ch)) readTo(result, '"', 'STRING', '\\', false);
+		if (isStringDelimiter(ch)) readTo(result, '"', 'STRING', '\\', false);
 		else if (isComment(ch)) readTo(result, '\n', 'COMMENT', null, true);
 		else if (isPunctuation(ch)) readChar(result, 'PUNCTUATION');
 		else if (isOpenBracket(ch)) readChar(result, 'OPEN-BRACKET');
@@ -299,7 +300,7 @@ var parse = function(s)
 var readFrom = function(tokenizer, oneAhead)
 {
     var result = oneAhead || tokenizer.next();
-    var u, v, b, desugared, L;
+    var u, v, b, L;
 
     var bracketError = function(b, type, message, inner)
     {
@@ -308,13 +309,13 @@ var readFrom = function(tokenizer, oneAhead)
 
     if (!result.error)
     {
-	if (result.type == 'OPEN-BRACKET')
+	if (result.type === 'OPEN-BRACKET')
 	{
 	    L = [];
 	    u = tokenizer.next();
 	    b = result;  // Record the bracket, in case we need to desugar it.
 	    
-	    while (u.token != matchingBracket(result.token))
+	    while (u.token != matchingBracket[result.token])
 	    {
 		if (u.error)
 		{
@@ -346,8 +347,9 @@ var readFrom = function(tokenizer, oneAhead)
 	    {
 		result = L;
 
-		// Some kinds of brackets, typically '[...]' and '{...}', are syntactic sugar for simpler forms
+		// Some kinds of brackets, typically [...] and {...}, are syntactic sugar for (op1 ...) & (op2 ...).
 		// This is where we remove the sugar.
+		//
 		var desugared = desugarBracket[b.token];
 		if (desugared)
 		{
@@ -356,21 +358,45 @@ var readFrom = function(tokenizer, oneAhead)
 		}
 	    }
 	}
-	else if (result.type == 'CLOSE-BRACKET')
+	else if (result.type === 'CLOSE-BRACKET')
 	{
 	    result.error = bracketError(result, 'Close', 'unexpected.  No matching opening bracket.');
 	}
-	else if (result.type == 'STRING')
+	else if (result.type === 'STRING')
 	{
 	    // No processing.
 	}
-	else if (result.type == 'COMMENT')
+	else if (result.type === 'COMMENT')
 	{
 	    result = readFrom(tokenizer);  // Skip the comment
 	}
-	else if (result.type == 'PUNCTUATION')
+	else if (result.type === 'PUNCTUATION')
 	{
-	    result = readFrom(tokenizer); // Skip.  TODO: Pay attention to punctuation.
+	    var firstPunc = result;
+	    var punc = '';
+	    while (result.type === 'PUNCTUATION' && !result.error)
+	    {
+		punc += result.token;
+		result = readFrom(tokenizer);
+	    }
+
+	    if (!result.error) 
+	    {
+		console.log("Punctuation: " + punc);
+		desugared = desugarPunctuation[firstPunc.token];
+		if (desugared)
+		{
+		    console.log("Desugared: " + desugared);
+		    console.log("Result:", result);
+		    firstPunc.token = desugared;  firstPunc.type = 'ATOM';
+		    result = [firstPunc, result];
+		}
+		else
+		{
+		    result.error = reportError(firstPunc.line, firstPunc.column, 'Unrecognized punctuation: ' + punc);
+		}
+	    }
+		
 	}
 	else
 	{
@@ -599,75 +625,76 @@ var comp = function comp(exp, env)
 	else
 	{
 	    arg = exp[0].token;
-	    if (isDeclaration(arg))
+	    var argType = specialForms[arg];
+
+	    if(argType)
 	    {
-		// TODO: error if there aren't 2 or 3 arguments
-		// TODO: error if exp[1] cannot be declared, or has already been declared
-		// TODO: error if exp[2] expands to an invalid form, e.g. an assignment 
-		env.symbols[exp[1]] = 'VARIABLE';
-		out('var ');
-		if (exp.length == 2) out(translate(exp[1].token))
-		else assign(exp[1], exp[2]);
+		switch(argType)
+		{
+		case 'DECLARATION':
+		    // TODO: error if there aren't 2 or 3 arguments
+		    // TODO: error if exp[1] cannot be declared, or has already been declared
+		    // TODO: error if exp[2] expands to an invalid form, e.g. an assignment 
+		    env.symbols[exp[1]] = 'VARIABLE';
+		    out('var ');
+		    if (exp.length == 2) out(translate(exp[1].token))
+		    else assign(exp[1], exp[2]);
+		    break;
+		case 'ASSIGNMENT':
+		    // TODO: error if there aren't 3 arguments
+		    // TODO: error if exp[1] cannot be assigned to
+		    // TODO: error if exp[2] expands to an invalid form, e.g. an assignment or a declaration
+		    assign(exp[1], exp[2]);
+		    break;
+		case 'SEQUENCE':
+		    // TODO: error if there aren't > 1 argument
+		    seqForm(rest(exp));
+		    break;
+		case 'WHEN':
+		    // TODO: error if there aren't 3 or more arguments
+		    out('if (');  comp(exp[1], env); out(') ');
+		    seqForm(drop(2, exp));
+		    break;
+		case 'LAMBDA':
+	  	    // TODO: error if there aren't at least 3 arguments
+		    // TODO: error if exp[1] isn't a list of arguments
+		    lambdaForm(exp[1], drop(2, exp));
+		    break;   
+		case 'ARRAY':
+		    // TODO: error if any arguments aren't expressions
+		    intersperse(', ', rest(exp), '[', ']');
+		break;
+		case 'OBJECT':
+		    // TODO: error if total # arguments isn't odd
+		    // TODO: error if there are duplicate keys
+		    // TODO: keys which are not valid names get quoted, including reserved words
+		    // TODO: keys which are lists are errors
+		    // TODO: all values must be expressions
+		    objectForm(rest(exp));
+		break;
+		case 'EXISTENCE':
+		    // TODO: error if not 2 args
+		    // TODO: error if not exp[1] isn't a declared variable
+		    // TODO: rewrite as a macro
+		    var exArg = translate(exp[1].token);
+		    out(['typeof', exArg, '!== "undefined" &&', exArg,'!== null'].join(' '));
+		    break;
+		case 'FOR':
+		    // TODO: error if not at least 4 args
+		    // TODO: error if 1st arg isn't a variable name
+		    // TODO: error if 2nd & 3rd args
+		    var forVar = translate(exp[1].token);
+		    out('for(var ' + forVar +'=');
+		    comp(exp[2]);
+		    out('; ' + forVar + '<=');
+		    comp(exp[3]);
+		    out('; ' + forVar + '++) ');
+		    seqForm(drop(4, exp));
+		    break;
+		default: // TODO: no code yet for this special form
+		}
 	    }
-	    else if (isAssignment(arg))
-	    {
-		// TODO: error if there aren't 3 arguments
-		// TODO: error if exp[1] cannot be assigned to
-		// TODO: error if exp[2] expands to an invalid form, e.g. an assignment or a declaration
-		assign(exp[1], exp[2]);
-	    }
-	    else if (isSequence(arg))
-	    {
-		// TODO: error if there aren't > 1 argument
-		seqForm(rest(exp));
-	    }
-	    else if (isWhen(arg))
-	    {
-		// TODO: error if there aren't 3 or more arguments
-		out('if (');  comp(exp[1], env); out(') ');
-		seqForm(drop(2, exp));
-	    }
-	    else if (isLambda(arg))
-	    {
-		// TODO: error if there aren't at least 3 arguments
-		// TODO: error if exp[1] isn't a list of arguments
-		lambdaForm(exp[1], drop(2, exp));
-	    } 	   
-	    else if (isArray(arg))
-	    {
-		// TODO: error if any arguments aren't expressions
-		intersperse(', ', rest(exp), '[', ']');
-	    }
-	    else if (isObject(arg))
-	    {
-		// TODO: error if total # arguments isn't odd
-		// TODO: error if there are duplicate keys
-		// TODO: keys which are not valid names get quoted, including reserved words
-		// TODO: keys which are lists are errors
-		// TODO: all values must be expressions
-		objectForm(rest(exp));
-	    }
-	    else if (isExists(arg))
-	    {
-		// TODO: error if not 2 args
-		// TODO: error if not exp[1] isn't a declared variable
-		// TODO: rewrite as a macro
-		var exArg = translate(exp[1].token);
-		out(['typeof', exArg, '!== "undefined" &&', exArg,'!== null'].join(' '));
-	    }
-	    else if (isFor(arg))
-	    {
-		// TODO: error if not at least 4 args
-		// TODO: error if 1st arg isn't a variable name
-		// TODO: error if 2nd & 3rd args
-		var forVar = translate(exp[1].token);
-		out('for(var ' + forVar +'=');
-		comp(exp[2]);
-		out('; ' + forVar + '<=');
-		comp(exp[3]);
-		out('; ' + forVar + '++) ');
-		seqForm(drop(4, exp));
-	    }
+
 //
 // TODO: Other special forms
 //
