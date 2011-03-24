@@ -8,8 +8,6 @@
 /// Command-line> nodeunit tests.js
 ///
 
-var qs = require('qs');
-
 //--------------------------------------------------------------------------------
 // Tokenizing
 //--------------------------------------------------------------------------------
@@ -48,13 +46,15 @@ exports.testTokenize = function(test)
 // Parsing
 //--------------------------------------------------------------------------------
 
+var parse = require('./parser').parse;
+
 exports.testParse = function(test)
 {
-    var p = qs.parse(''); test.ok(p.error);
-    p = qs.parse('('); test.ok(p.error);
-    p = qs.parse(')'); test.ok(p.error);
-    p = qs.parse('(]'); test.ok(p.error);
-    p = qs.parse('(('); test.ok(p.error);
+    var p = parse(''); test.ok(p.error);
+    p = parse('('); test.ok(p.error);
+    p = parse(')'); test.ok(p.error);
+    p = parse('(]'); test.ok(p.error);
+    p = parse('(('); test.ok(p.error);
 
 // TODO: Include some positive tests of parsing.
 
@@ -63,11 +63,11 @@ exports.testParse = function(test)
 
 exports.testBracketDesugaring = function(test)
 {
-    var p = qs.parse('[1 2 3]').exp[0];
+    var p = parse('[1 2 3]').exp[0];
     test.equal(p.length, 4);
     test.equal(p[0].token, 'fn');
 
-    p = qs.parse('{1 2 3}').exp[0];
+    p = parse('{1 2 3}').exp[0];
     test.equal(p.length, 4);
     test.equal(p[0].token, 'object');
     test.done();
@@ -78,10 +78,12 @@ exports.testBracketDesugaring = function(test)
 //--------------------------------------------------------------------------------
 // Compiling
 //--------------------------------------------------------------------------------
+var compile = require('compiler').compile;
+
 exports.testCompile = function(test)
 {
-    var p = qs.parse('(var number 42)');
-    test.equal(qs.compile(p.exp).indexOf('var number = 42'), 0);
+    var p = parse('(var number 42)');
+    test.equal(compile(p.exp).indexOf('var number = 42'), 0);
 
     test.done();
 }
@@ -90,10 +92,12 @@ exports.testCompile = function(test)
 // Matching CoffeeScript
 //--------------------------------------------------------------------------------
 
+var run = require('qs').run;
+
 exports.testDeclaration = function(test)
 {
-    test.equal(qs.run('(var number 42) number'), 42);
-    test.equal(qs.run('(var opposite true) opposite'), true);
+    test.equal(run('(var number 42) number'), 42);
+    test.equal(run('(var opposite true) opposite'), true);
     test.done();
 }
 
@@ -105,7 +109,7 @@ exports.testSequence = function(test)
      (when opposite \
          (= number -42)))';
 
-    test.equal(qs.run(p), -42);
+    test.equal(run(p), -42);
     test.done();
 }
 
@@ -115,14 +119,14 @@ exports.testFn = function(test)
 '(var sqr (fun (x) \
               (* x x))) \
  (sqr 5)';
-    test.equal(qs.run(p), 25);
+    test.equal(run(p), 25);
     test.done();
 }
 
 exports.testArray = function(test)
 {
-    var p = qs.parse('(array 1 2 3 4 5)');
-    test.equal(qs.compile(p.exp).indexOf('[1, 2, 3, 4, 5]'), 0);
+    var p = parse('(array 1 2 3 4 5)');
+    test.equal(compile(p.exp).indexOf('[1, 2, 3, 4, 5]'), 0);
     test.done();
 }
 
@@ -136,7 +140,7 @@ exports.testObject = function(test)
            cube   (fun (x) (* x (square x))))) \
 (m.root 9)';
 
-    test.equal(qs.run(p), 3);
+    test.equal(run(p), 3);
     test.done();
 }
 
@@ -147,14 +151,14 @@ exports.testRestParameters = function(test)
               (+ 2 z.length))) \
 (args 1 2 3 4 5)';
 
-    test.equal(qs.run(p), 5);
+    test.equal(run(p), 5);
     test.done();
 }
 
 exports.testExistentialOperator = function(test)
 {
-    test.ok(qs.run('(var a 5) (exists? a)'));
-    test.equal(qs.run('(exists? b)'), false);
+    test.ok(run('(var a 5) (exists? a)'));
+    test.equal(run('(exists? b)'), false);
     test.done();
 }
 
@@ -166,7 +170,7 @@ exports.testExistentialOperator = function(test)
 //
 exports.for = function(test)
 {
-    test.equal(qs.run('(var j 1) (for i 1 6 (= j (* i j)))'), 720);
+    test.equal(run('(var j 1) (for i 1 6 (= j (* i j)))'), 720);
     test.done();
 }
 
