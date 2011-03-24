@@ -13,9 +13,11 @@ var qs = require('qs');
 //--------------------------------------------------------------------------------
 // Tokenizing
 //--------------------------------------------------------------------------------
+var makeTokenizer = require('tokenizer').makeTokenizer;
+
 exports.testTokenize = function(test)
-{                           //1234567890123456789012345678901234567890
-    var t = qs.makeTokenizer('(quick? 123.4 ["brown [] fox" jump-ed!\n,');
+{                        //1234567890123456789012345678901234567890
+    var t = makeTokenizer('(quick? 123.4 ["brown [] fox" jump-ed!\n,');
     test.deepEqual(t.next(), { token:'(', type:'OPEN-BRACKET', line: 1, column: 1 });
     test.deepEqual(t.next(), { token:'quick?', type:'ATOM', line: 1 , column: 2 });
     test.deepEqual(t.next(), { token:'123.4', type:'ATOM', line: 1 , column: 9 });
@@ -25,18 +27,18 @@ exports.testTokenize = function(test)
     test.deepEqual(t.next(), { token:',', type:'PUNCTUATION', line: 2, column: 1 });
     test.equal(t.next().error, 'Line 2, column 2: Unexpected end-of-stream');
 
-    t = qs.makeTokenizer('"No closing\nquotes');
+    t = makeTokenizer('"No closing\nquotes');
     test.ok(t.next().error);
 
-    t = qs.makeTokenizer('foo;bar\n;goo;zar');
+    t = makeTokenizer('foo;bar\n;goo;zar');
     test.deepEqual(t.next(), { token:'foo', type:'ATOM', line: 1, column: 1 });
     test.deepEqual(t.next(), { token:'bar', type:'COMMENT', line: 1, column: 4 });
     test.deepEqual(t.next(), { token:'goo;zar', type:'COMMENT', line: 2, column: 1 });
 
-    t = qs.makeTokenizer('foo"bar');
+    t = makeTokenizer('foo"bar');
     test.ok(t.next().error);
 
-    t = qs.makeTokenizer('"A string with ;(stuff) in \\"it\\"."');
+    t = makeTokenizer('"A string with ;(stuff) in \\"it\\"."');
     test.equal(t.next().token, 'A string with ;(stuff) in "it".');
 
     test.done();

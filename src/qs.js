@@ -1,278 +1,26 @@
 /// qs: Lisp to idiomatic JavaScript compiler
 ///
+/// Repository: https://github.com/danprager/QuasiScript
+///
 /// (c) Daniel Prager, 2011
 ///
-/// I use Node.js for implementation and nodeunit for testing.  
-/// Could use underscore.js for more functional goodness.
-///
 
-//--------------------------------------------------------------------------------
-// Syntax for our Lisp.
-//--------------------------------------------------------------------------------
-
-// Boolean constants
-//
-var trueValue = 'true';       // Scheme: #t
-var falseValue = 'false';     // Scheme: #f
-
-// Is 'ch' a space, tab or end-of-line character.  Tabs are assumed to be 4 chars wide.
-//
-var isWhiteSpace = function(ch) { return ' \t\n\r'.indexOf(ch) > -1; }
-
-// Does 'ch' start a comment?
-//
-var isComment = function(ch) { return ch === ';'; }
-
-// Is 'ch' a reserved punctuation character?
-//
-var isPunctuation = function(ch) { return "'`,@#~:".indexOf(ch) > -1; }
-
-// Does 'ch' start (or end) a string?
-//
-var isStringDelimiter = function(ch) { return ch === '"'; }
-
-// Is 'ch' a recognised opening bracket?
-//
-var isOpenBracket = function(ch) { return '([{'.indexOf(ch) > -1; }
-
-// Is 'ch' a recognised closing bracket?
-//
-var isCloseBracket = function(ch) { return ')]}'.indexOf(ch) > -1; }
-
-// What's the matching closing bracket for 'ch'?  Otherwise return null.
-//
-var matchingBracket = { '(':')', '[':']', '{':'}' }
-
-// The special forms of our Lisp
-// 
-var specialForms = {
-    'var': 'DECLARATION',
-    '=': 'ASSIGNMENT',
-    'fun': 'LAMBDA',
-    'begin': 'SEQUENCE',
-    'when': 'WHEN',
-    'array': 'ARRAY',
-    'object': 'OBJECT',
-    'exists?': 'EXISTENCE',
-    'for': 'FOR',
-    'while': 'WHILE',
-    'until': 'UNTIL',
-    'quote': 'QUOTE' }
-
-// Binary operators
-//
-var binaryOperator = { '+': '+', '-':'-', '*':'*', '/': '/',
-		       'and': '&&', 'or': '||' };
-
-var isBinaryOperator = function(arg) { return arg in binaryOperator };
-
-// Syntactic sugar
-//
-var desugarBracket = { 
-    '[': 'fn', 
-    '{': 'object' };
-var desugarPunctuation = {
-    "'": 'quote',
-    '`': 'quasiquote',
-    ',': 'unquote',
-    ',@': 'unquote-splicing'
-};
-
-//--------------------------------------------------------------------------------
-// Utility functions
-//--------------------------------------------------------------------------------
-
-// Lists are arrays.
-//
-var isList = function(a) { return toString.call(a) === '[object Array]'; };
-var first = function(a) { return a[0]; }
-
-var rest = function(a) { return a.slice(1); }
-var drop = function(n, a) { return a.slice(n); }
-
-// Use underscore library instead?
-//
-var map = function(arr, fn)
-{
-    var result, i;
-    
-    for(i=0, result=[]; i<arr.length; i++) 
-	result.push(fn(arr[i]));
-
-    return result;
-}
-
-var each = function(arr, fn)
-{  
-    for(var i=0; i<arr.length; i++) fn(arr[i]);
-}
-
-//--------------------------------------------------------------------------------
-// Error reporting
-//--------------------------------------------------------------------------------
-
-var reportError = function(line, column, message, innerErrors)
-{
-    var result = 'Line ' + line + ', column ' + column + ': ' + message;
-
-    if (innerErrors) result += '\n' + innerErrors
-
-    return result;
-}
-
-//--------------------------------------------------------------------------------
-// Tokenizing
-//--------------------------------------------------------------------------------
-
-var makeTokenizer = function(s)
-{
-    var line = 1;
-    var column = 1;
-    var index = 0;
-    var length = s.length;
-
-    // End of stream?
-    //
-    var atEOS = function() { return index >= length; }
-
-    var checkEOS = function(result, EOSok)
-    {
-	if (atEOS() && !EOSok) result.error = reportError(line, column, 'Unexpected end-of-stream');
-
-	return atEOS();
-    }
-
-    // Get the next character without popping it off.  Assumes not atEOS.
-    //
-    var nextChar = function() { return s[index]; }
-
-    // Pop the next character off the stream and advance the cursor.
-    //
-    var pop = function() 
-    { 
-	var result = nextChar();
-	index++;
-
-	if (result == '\t') column += 4;
-	else if (result == '\n') { line += 1; column = 1; }
-	else if (result == '\r') { /* Ignored */ }
-	else column++;
-
-	return result;
-    }
-
-    var skipWhiteSpace = function()
-    {
-	while (!atEOS() && isWhiteSpace(nextChar())) pop();
-    }
-
-    // Read the next character as a token of type 'type' 
-    //
-    var readChar = function(result, type)
-    {
-	result.type = type;
-	result.token = pop();
-    }
-
-    // Build a token, ignoring the first character, and reading until 'endChar' or the end-of-stream is reached.
-    // Excludes the end characters.  E.g. "stuff" -> stuff.
-    //
-    // Flags
-    //     EOSok: Don't record an error if end-of-stream is reached before an 'endChar'.
-    //     escapeCharacter: Allows escape character (otherwise pass in null).  
-    //                      Currently: \endChar, \n, \t, otherwise ignored.
-    //
-    var readTo = function(result, endChar, type, escCharacter, EOSok)
-    {
-	result.type = type;
-	var token = '';
-	var escaped = false;
-
-	pop();
-	while (true)
-	{
-	    if (checkEOS(result, EOSok)) break;
-
-	    var ch = pop();
-	    
-	    if (escaped && escCharacter)
-	    {
-		token += (ch === 'n') ? '\n' :
-	                 (ch === 't') ? '\t' : ch;
-
-		escaped = false;
-	    }
-	    else
-	    {
-		if (ch === endChar) break;
-		else if (ch === escCharacter) escaped = true;
-		else token += ch;
-	    }
-	}
-
-	result.token = token;
-
-	if (result.error)
-	{
-	    result.error = reportError(result.line, result.column, 'Started reading ' + type, result.error);
-	}
-    }
-    
-    // Read in an atom as a token from the stream. 
-    // Record an error if an illegal character is encountered, typically punctuation or string quotation ("). 
-    //
-    var readAtom = function(result)
-    {
-	result.type = 'ATOM';
-	var token = '';
-
-	var ch = nextChar();
-	while (!atEOS() && !isWhiteSpace(ch) && !isCloseBracket(ch) && !isComment(ch))
-	{
-	    if (isPunctuation(ch) || isStringDelimiter(ch) || isOpenBracket(ch))
-	    {
-		result.error = reportError(line, column, 'Illegal character ' + ch + ' encountered.  Missing a space?');
-		break;
-	    }
-
-	    pop();
-	    token += ch;
-
-	    ch = nextChar();
-	}
-
-	result.token = token;
-    }
-
-    return { 
-	eos: atEOS,
-	next: function()
-	{
-	    skipWhiteSpace();
-
-	    var result = { token: '', type: '', line: line, column: column };
-
-	    if (!checkEOS(result))
-	    {
-		var ch = nextChar();
-	
-		if (isStringDelimiter(ch)) readTo(result, '"', 'STRING', '\\', false);
-		else if (isComment(ch)) readTo(result, '\n', 'COMMENT', null, true);
-		else if (isPunctuation(ch)) readChar(result, 'PUNCTUATION');
-		else if (isOpenBracket(ch)) readChar(result, 'OPEN-BRACKET');
-		else if (isCloseBracket(ch)) readChar(result, 'CLOSE-BRACKET');
-		else readAtom(result);
-	    }
-	
-	    return result;
-	}	
-    };
-}
-
+var utility = require('./utility');
+var dialect = require('./dialect');
+var tokenizer = require('./tokenizer');
 
 //--------------------------------------------------------------------------------
 // Parsing
 //--------------------------------------------------------------------------------
+var reportError = utility.reportError;
+
+var constants = dialect.constants;
+var bracketSugar = dialect.bracketSugar;
+var punctuationSugar = dialect.punctuationSugar;
+
+var makeTokenizer = tokenizer.makeTokenizer;
+var matchingBracket = tokenizer.matchingBracket;
+var isCloseBracket = tokenizer.isCloseBracket;
 
 // Tokenize and parse a string.
 //
@@ -350,7 +98,7 @@ var readFrom = function(tokenizer, oneAhead)
 		// Some kinds of brackets, typically [...] and {...}, are syntactic sugar for (op1 ...) & (op2 ...).
 		// This is where we remove the sugar.
 		//
-		var desugared = desugarBracket[b.token];
+		var desugared = bracketSugar[b.token];
 		if (desugared)
 		{
 		    b.token = desugared;  b.type = 'ATOM'; 
@@ -383,7 +131,7 @@ var readFrom = function(tokenizer, oneAhead)
 	    if (!result.error) 
 	    {
 		console.log("Punctuation: " + punc);
-		desugared = desugarPunctuation[firstPunc.token];
+		desugared = punctuationSugar[firstPunc.token];
 		if (desugared)
 		{
 		    console.log("Desugared: " + desugared);
@@ -417,11 +165,13 @@ var atom = function(s)
 {
     var result = Number(s);
 
-    if (isNaN(result))
+    if (isNaN(result) && s in constants)
     {
-	if (result === trueValue) result = true;
-	else if (result === falseValue) result = false;
-	else result = s;
+	result = constants[s];
+    }
+    else
+    {
+	result = s;
     }
 
     return result;
@@ -481,6 +231,11 @@ var setGlobals = function(env)
 //--------------------------------------------------------------------------------
 // Compile from Lisp to JavaScript
 //--------------------------------------------------------------------------------
+
+var each = utility.each;
+var rest = utility.rest;
+var drop = utility.drop;
+
 
 // Pretty printing helpers
 //
@@ -579,7 +334,6 @@ var comp = function comp(exp, env)
 	out(') ');
 
 	// TODO: Introduce new scope
-	// TODO: Handle rest parameter
 
 	seqForm(body, true, rest);  
     }
@@ -619,13 +373,13 @@ var comp = function comp(exp, env)
 	out('}');
     }
 
-    if (isList(exp))
+    if (utility.isList(exp))
     {
 	if (exp.length == 0) {}	    // TODO: Is this an error?
 	else
 	{
 	    arg = exp[0].token;
-	    var argType = specialForms[arg];
+	    var argType = dialect.specialForms[arg];
 
 	    if(argType)
 	    {
@@ -702,10 +456,10 @@ var comp = function comp(exp, env)
 	    {
 		expandMacro(arg); // TODO: Macro-expansion
 	    }
-	    else if (isBinaryOperator(arg))
+	    else if (arg in dialect.binaryOperator)
 	    {
 		// TODO: Error if < 3 arguments
-		intersperse(binaryOperator[arg], rest(exp), '(', ')');
+		intersperse(dialect.binaryOperator[arg], rest(exp), '(', ')');
 	    }
 	    else // TODO: Procedure call
 	    {		
