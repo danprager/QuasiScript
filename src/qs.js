@@ -27,3 +27,5 @@ var run = function (s)
 //--------------------------------------------------------------------------------
 
 exports.run = run;
+exports.parse = parse;
+exports.compile = compile;
