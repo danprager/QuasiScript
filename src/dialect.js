@@ -21,6 +21,12 @@ exports.specialForms = {
     'until': 'UNTIL',
     'quote': 'QUOTE' };
 
+// Is 'ch' a reserved punctuation character?
+//
+exports.isPunctuation = function(ch) { return "'`,@#~:".indexOf(ch) > -1; }
+
+exports.longPunctuation = [',@'];
+
 // Syntactic sugar
 //
 exports.bracketSugar = { 
@@ -32,7 +38,6 @@ exports.punctuationSugar = {
     '`': 'quasiquote',
     ',': 'unquote',
     ',@': 'unquote-splicing' };
-
 
 // Special values get mapped to the constants of JS: true, false, null, etc.
 //

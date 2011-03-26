@@ -21,8 +21,7 @@ var parse = function(s)
     var result = { exp: [], error: '' };
     
     do
-    {
-	var r = readFrom(t);
+    {   var r = readFrom(t);
 
 	if (r.error) result.error = r;
 	else result.exp.push(r);
@@ -106,35 +105,22 @@ var readFrom = function(t, oneAhead)
 	}
 	else if (result.type === 'COMMENT')
 	{
-	    result = readFrom(tokenizer);  // Skip the comment
+	    result = readFrom(t);  // Skip the comment
 	}
 	else if (result.type === 'PUNCTUATION')
 	{
-	    var firstPunc = result;
-	    var punc = '';
-	    while (result.type === 'PUNCTUATION' && !result.error)
-	    {
-		punc += result.token;
-		result = readFrom(t);
-	    }
+	    var punc = result;
+	    desugared = dialect.punctuationSugar[punc.token];
 
-	    if (!result.error) 
+	    if (desugared)
 	    {
-		console.log("Punctuation: " + punc);
-		desugared = dialect.punctuationSugar[firstPunc.token];
-		if (desugared)
-		{
-		    console.log("Desugared: " + desugared);
-		    console.log("Result:", result);
-		    firstPunc.token = desugared;  firstPunc.type = 'ATOM';
-		    result = [firstPunc, result];
-		}
-		else
-		{
-		    result.error = reportError(firstPunc.line, firstPunc.column, 'Unrecognized punctuation: ' + punc);
-		}
+		punc.token = desugared;  punc.type = 'ATOM';
+		result = [punc, readFrom(t)];
 	    }
-		
+	    else
+	    {
+		result.error = reportError(punc.line, punc.column, 'Unrecognized punctuation: ' + punc.token);
+	    }	
 	}
 	else
 	{
@@ -167,8 +153,23 @@ var atom = function(s)
     return result;
 }
 
+// Convert an AST representation into S-expression form
+//
+var unparse = function (ast)
+{
+    var U = function (exp)
+    {
+	return Array.isArray(exp) ? '(' + exp.map(U).join(' ') + ')' :
+            exp.type === 'STRING' ? '"' + exp.token + '"' :
+	    exp.token; 
+    }
+
+    return ast.map(U).join('\n');
+}
+
 //--------------------------------------------------------------------------------
 // Exports
 //--------------------------------------------------------------------------------
 
 exports.parse = parse;
+exports.unparse = unparse;

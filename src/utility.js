@@ -24,7 +24,7 @@ exports.reportError = function(line, column, message, innerErrors)
 
 // Lists are arrays.
 //
-exports.isList = function(a) { return toString.call(a) === '[object Array]'; };
+exports.isList = function(a) { return Array.isArray(a); };
 
 // List manipulation
 //

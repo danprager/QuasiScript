@@ -7,6 +7,9 @@
 
 var reportError = require('./utility').reportError;
 
+var dialect = require('./dialect');
+var isPunctuation = dialect.isPunctuation;
+
 //--------------------------------------------------------------------------------
 // Basic syntax: whitespace, comments, strings, braces
 //--------------------------------------------------------------------------------
@@ -18,10 +21,6 @@ var isWhiteSpace = function(ch) { return ' \t\n\r'.indexOf(ch) > -1; }
 // Does 'ch' start a comment?
 //
 var isComment = function(ch) { return ch === ';'; }
-
-// Is 'ch' a reserved punctuation character?
-//
-var isPunctuation = function(ch) { return "'`,@#~:".indexOf(ch) > -1; }
 
 // Does 'ch' start (or end) a string?
 //
@@ -71,7 +70,7 @@ var makeTokenizer = function(s)
 
     // Get the next character without popping it off.  Assumes not atEOS.
     //
-    var nextChar = function() { return s[index]; }
+    var nextChar = function() { return s[index]; } 
 
     // Pop the next character off the stream and advance the cursor.
     //
@@ -171,6 +170,30 @@ var makeTokenizer = function(s)
 	result.token = token;
     }
 
+    // Read from the longest match in the set of completions, or a single character.
+    //
+    var readFromSet = function(result, set, type)
+    {
+	result.type = type;
+
+	var found = false;
+
+	for (var i=0; i<set.length; i++)
+	{
+	    var item = set[i];
+	    var len = item.length;
+	    if (item === s.substr(index, len))
+	    {
+		result.token = item;
+		index += len;
+		found = true;
+		break;
+	    }
+	}
+
+	if (!found) result.token = pop();
+    }
+
     return { 
 	eos: atEOS,
 	next: function()
@@ -185,7 +208,7 @@ var makeTokenizer = function(s)
 	
 		if (isStringDelimiter(ch)) readTo(result, '"', 'STRING', '\\', false);
 		else if (isComment(ch)) readTo(result, '\n', 'COMMENT', null, true);
-		else if (isPunctuation(ch)) readChar(result, 'PUNCTUATION');
+		else if (isPunctuation(ch)) readFromSet(result, dialect.longPunctuation, 'PUNCTUATION');
 		else if (isOpenBracket(ch)) readChar(result, 'OPEN-BRACKET');
 		else if (isCloseBracket(ch)) readChar(result, 'CLOSE-BRACKET');
 		else readAtom(result);

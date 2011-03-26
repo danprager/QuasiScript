@@ -46,17 +46,33 @@ exports.testTokenize = function(test)
 // Parsing
 //--------------------------------------------------------------------------------
 
-var parse = require('./parser').parse;
+var parser = require('./parser');
+var parse = parser.parse;
+var unparse = parser.unparse;
 
 exports.testParse = function(test)
 {
-    var p = parse(''); test.ok(p.error);
-    p = parse('('); test.ok(p.error);
-    p = parse(')'); test.ok(p.error);
-    p = parse('(]'); test.ok(p.error);
-    p = parse('(('); test.ok(p.error);
+    // Error-inducing examples
+    //
+    var perror = function(s) { test.ok(parse(s).error); }
+    
+    perror('');
+    perror('(');
+    perror(')');
+    perror('(]');
+    perror('((');
+    perror('(()');
 
-// TODO: Include some positive tests of parsing.
+    // Parse/unparse combos
+    var pup = function (s, t) { test.equal(unparse(parse(s).exp), t || s); }
+   
+    pup('a b','a\nb');
+    pup('(a b c 1 "2" (3))');
+    pup("'a", '(quote a)');
+    pup("''a", '(quote (quote a))');
+    pup('`(a b ,c ,@(d e))', '(quasiquote (a b (unquote c) (unquote-splicing (d e))))');
+    pup('[* _ _]', '(fn * _ _)');
+    pup('{a 1 b 2}', '(object a 1 b 2)');
 
     test.done();
 }
