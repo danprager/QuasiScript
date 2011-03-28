@@ -23,7 +23,7 @@ var parse = function(s)
     do
     {   var r = readFrom(t);
 
-	if (r.error) result.error = r;
+	if (r.error) result.error = r.error;
 	else result.exp.push(r);
     } while (!t.eos() && !result.error);
     

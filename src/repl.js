@@ -34,7 +34,8 @@ var backlog = '';
 //
 var run = function (buffer)
 {
-    backlog += '\n' + buffer.toString();
+
+    backlog += (backlog.length > 0 ? '\n' : '') + buffer.toString();
     var code = backlog;
 
     if (code[code.length-1] == '\\') 
@@ -47,20 +48,31 @@ var run = function (buffer)
     backlog = '';
     try 
     {
-	var c = qs.compile(qs.parse(code).exp);
-	stdout.write('\033[33m' + c + '\033[0m');   // Color: yellow
-	var val = eval(c);
-	if (val !== undefined) 
+	var p = qs.parse(code);
+	if (p.error)
 	{
-	    stdout.write('\033[32m');               // Color: green
-	    console.log(val); 
-	    stdout.write('\033[0m');
+	    error(p.error);
+	}
+	else
+	{
+	    var c = qs.compile(p.exp);
+	    // TODO: Abort and report compilation errors
+
+	    stdout.write('\033[33m' + c + '\033[0m');   // Color: yellow
+	    var val = eval(c);
+	    if (val !== undefined) 
+	    {
+		stdout.write('\033[32m');               // Color: green
+		console.log(val); 
+		stdout.write('\033[0m');
+	    }
 	}
     } 
     catch (err) 
     {
 	error(err);
     }
+
     repl.prompt();
 }
 
