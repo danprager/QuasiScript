@@ -25,6 +25,9 @@ exports.specialForms = {
 //
 exports.isPunctuation = function(ch) { return "'`,@#~:".indexOf(ch) > -1; }
 
+// List of long punctuation symbols that the tokenizer should clump together.
+// Note: Be sure to put longer ones with the same prefix before shorter ones.
+//
 exports.longPunctuation = [',@'];
 
 // Syntactic sugar
@@ -42,13 +45,13 @@ exports.punctuationSugar = {
 // Special values get mapped to the constants of JS: true, false, null, etc.
 //
 exports.constants = {
-    'true': 'true',              // Scheme: #t
-    'false': 'false',            // Scheme: #f
-    'null': 'null',              // Scheme: nil
-    'undefined': 'undefined', 
-    'NaN': 'Nan',
-    'Infinity': 'Infinity',
-    '-Infinity': '-Infinity'
+    'true': true,              // Scheme: #t
+    'false': false,            // Scheme: #f
+    'null': null,              // Scheme: nil
+    'undefined': undefined, 
+    'NaN': NaN,
+    'Infinity': Infinity,
+    '-Infinity': -Infinity
 }
 
 // Binary operators

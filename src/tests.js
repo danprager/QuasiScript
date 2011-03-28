@@ -73,6 +73,9 @@ exports.testParse = function(test)
     pup('`(a b ,c ,@(d e))', '(quasiquote (a b (unquote c) (unquote-splicing (d e))))');
     pup('[* _ _]', '(fn * _ _)');
     pup('{a 1 b 2}', '(object a 1 b 2)');
+    pup('123');
+    pup('"123"');
+    pup('true');
 
     test.done();
 }
@@ -81,11 +84,13 @@ exports.testBracketDesugaring = function(test)
 {
     var p = parse('[1 2 3]').exp[0];
     test.equal(p.length, 4);
-    test.equal(p[0].token, 'fn');
+    test.equal(p[0].token, '[');
+    test.equal(p[0].atom, 'fn');
 
     p = parse('{1 2 3}').exp[0];
     test.equal(p.length, 4);
-    test.equal(p[0].token, 'object');
+    test.equal(p[0].token, '{');
+    test.equal(p[0].atom, 'object');
     test.done();
 }
 

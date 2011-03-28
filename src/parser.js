@@ -90,7 +90,7 @@ var readFrom = function(t, oneAhead)
 		var desugared = dialect.bracketSugar[b.token];
 		if (desugared)
 		{
-		    b.token = desugared;  b.type = 'ATOM'; 
+		    b.atom = desugared;  b.type = 'ATOM'; 
 		    result.unshift(b);
 		}
 	    }
@@ -114,7 +114,7 @@ var readFrom = function(t, oneAhead)
 
 	    if (desugared)
 	    {
-		punc.token = desugared;  punc.type = 'ATOM';
+		punc.atom = desugared;  punc.type = 'ATOM';
 		result = [punc, readFrom(t)];
 	    }
 	    else
@@ -140,14 +140,9 @@ var atom = function(s)
 {
     var result = Number(s);
 
-    if (isNaN(result) 
-        && s in dialect.constants)
+    if (isNaN(result))
     {
-	result = dialect.constants[s];
-    }
-    else
-    {
-	result = s;
+	result = s in dialect.constants ? dialect.constants[s] : s;
     }
 
     return result;
@@ -161,7 +156,7 @@ var unparse = function (ast)
     {
 	return Array.isArray(exp) ? '(' + exp.map(U).join(' ') + ')' :
             exp.type === 'STRING' ? '"' + exp.token + '"' :
-	    exp.token; 
+	    exp.atom; 
     }
 
     return ast.map(U).join('\n');
