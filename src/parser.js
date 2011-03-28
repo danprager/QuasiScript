@@ -115,11 +115,12 @@ var readFrom = function(t, oneAhead)
 	    if (desugared)
 	    {
 		punc.atom = desugared;  punc.type = 'ATOM';
-		result = [punc, readFrom(t)];
+		result = readFrom(t);
+		if (!result.error) result = [punc, result];
 	    }
 	    else
 	    {
-		result.error = reportError(punc.line, punc.column, 'Unrecognized punctuation: ' + punc.token);
+		result.atom = result.token;
 	    }	
 	}
 	else
