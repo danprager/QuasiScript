@@ -62,5 +62,23 @@ exports.binaryOperator = {
     '*':'*', 
     '/': '/',
     'and': '&&', 
-    'or': '||' };
+    'or': '||',
+    'mod': '%'     // not associative 
+ };
+
+// Unary operators
+//
+exports.unaryOperator = {
+    'not': '!' }
+
+// Comparisons
+//
+exports.comparisonOperators = {
+    'equal?': '===',
+    'unequal?': '!==',   // but (unequal? a b c) -> (not (equal? a b c))
+    '<': '<',
+    '>': '>',
+    '<=': '<=',
+    '>=': '>=' }
+
 

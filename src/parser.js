@@ -21,10 +21,16 @@ var parse = function(s)
     var result = { exp: [], error: '' };
     
     do
-    {   var r = readFrom(t);
-
-	if (r.error) result.error = r.error;
-	else result.exp.push(r);
+    { 
+	try 
+	{
+	    var r = readFrom(t);
+	    result.exp.push(r);
+	}
+	catch (err)
+	{
+	    result.error = err;
+	}
     } while (!t.eos() && !result.error);
     
     return result;
@@ -44,91 +50,74 @@ var readFrom = function(t, oneAhead)
 	return reportError(b.line, b.column, type + ' bracket "' + b.token + '" ' + message, inner);
     }
 
-    if (!result.error)
+    if (result.type === 'OPEN-BRACKET')
     {
-	if (result.type === 'OPEN-BRACKET')
-	{
-	    L = [];
-	    u = t.next();
-	    b = result;  // Record the bracket, in case we need to desugar it.
-	    
-	    while (u.token != tokenizer.matchingBracket[result.token])
-	    {
-		if (u.error)
-		{
-		    result.error = bracketError(result, 'Open', 'lacks matching closing bracket.', u.error);
-		    break;
-		}
-
-		if (tokenizer.isCloseBracket(u.token))
-		{
-		    result.error = bracketError(result, 'Open', '', 
-						bracketError(u, 'Close', 'does not match open bracket'));
-		    break;
-		}
-		
-		v = readFrom(t, u);
-
-		if (v.error)
-		{ 
-		    u = v;
-		}
-		else
-		{
-		    L.push(v);
-		    u = t.next();
-		}
-	    }
+	L = [];
+	u = t.next();
+	b = result;  // Record the bracket, in case we need to desugar it.
 	
-	    if (!result.error) 
-	    {
-		result = L;
-
-		// Some kinds of brackets, typically [...] and {...}, are syntactic sugar for (op1 ...) & (op2 ...).
-		// This is where we remove the sugar.
-		//
-		var desugared = dialect.bracketSugar[b.token];
-		if (desugared)
-		{
-		    b.atom = desugared;  b.type = 'ATOM'; 
-		    result.unshift(b);
-		}
+	while (u.token != tokenizer.matchingBracket[result.token])
+	{
+	    if (u.error)
+            {
+		throw bracketError(result, 'Open', 'lacks matching closing bracket.', u.error);
 	    }
-	}
-	else if (result.type === 'CLOSE-BRACKET')
-	{
-	    result.error = bracketError(result, 'Close', 'unexpected.  No matching opening bracket.');
-	}
-	else if (result.type === 'STRING')
-	{
-	    // No processing.
-	}
-	else if (result.type === 'COMMENT')
-	{
-	    result = readFrom(t);  // Skip the comment
-	}
-	else if (result.type === 'PUNCTUATION')
-	{
-	    var punc = result;
-	    desugared = dialect.punctuationSugar[punc.token];
 
-	    if (desugared)
+	    if (tokenizer.isCloseBracket(u.token))
 	    {
-		punc.atom = desugared;  punc.type = 'ATOM';
-		result = readFrom(t);
-		if (!result.error) result = [punc, result];
+		throw bracketError(result, 'Open', '', 
+					    bracketError(u, 'Close', 'does not match open bracket'));
 	    }
-	    else
-	    {
-		result.atom = result.token;
-	    }	
+
+	    v = readFrom(t, u);
+	    L.push(v);
+	    u = t.next();
+	}
+	
+	result = L;
+		
+	// Some kinds of brackets, typically [...] and {...}, are syntactic sugar for (op1 ...) & (op2 ...).
+	// This is where we remove the sugar.
+	//
+	var desugared = dialect.bracketSugar[b.token];
+	if (desugared)
+	{
+	    b.atom = desugared;  b.type = 'ATOM'; 
+	    result.unshift(b);
+	}
+    }
+    else if (result.type === 'CLOSE-BRACKET')
+    {
+	throw bracketError(result, 'Close', 'unexpected.  No matching opening bracket.');
+    }
+    else if (result.type === 'STRING')
+    {
+	// No processing.
+    }
+    else if (result.type === 'COMMENT')
+    {
+	result = readFrom(t);  // Skip the comment
+    }
+    else if (result.type === 'PUNCTUATION')
+    {
+	var punc = result;
+	desugared = dialect.punctuationSugar[punc.token];
+	
+	if (desugared)
+	{
+	    punc.atom = desugared;  punc.type = 'ATOM';
+	    result = [punc, readFrom(t)];
 	}
 	else
 	{
-	    result.atom = atom(result.token);
-	}
+	    result.atom = result.token;
+	}	
     }
-	
+    else
+    {
+	result.atom = atom(result.token);
+    }
+        
     return result;
 }
 
@@ -139,13 +128,13 @@ var readFrom = function(t, oneAhead)
 //
 var atom = function(s) 
 {
-    var result = Number(s);
+    var result = s === '' ? '' : Number(s);
 
     if (isNaN(result))
     {
 	result = s in dialect.constants ? dialect.constants[s] : s;
     }
-
+    
     return result;
 }
 

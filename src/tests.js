@@ -56,7 +56,6 @@ exports.testParse = function(test)
     //
     var perror = function(s) { test.ok(parse(s).error); }
     
-    perror('');
     perror('(');
     perror(')');
     perror('(]');
@@ -66,12 +65,15 @@ exports.testParse = function(test)
     // Parse/unparse combos
     var pup = function (s, t) { test.equal(unparse(parse(s).exp), t || s); }
    
+    pup('');
     pup('a b','a\nb');
     pup('(a b c 1 "2" (3))');
     pup("'a", '(quote a)');
     pup("''a", '(quote (quote a))');
     pup('`(a b ,c ,@(d e))', '(quasiquote (a b (unquote c) (unquote-splicing (d e))))');
     pup('[* _ _]', '(fn * _ _)');
+    pup('#');
+    pup(':');
     pup('{a 1 b 2}', '(object a 1 b 2)');
     pup('123');
     pup('"123"');
