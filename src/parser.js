@@ -16,22 +16,13 @@ var reportError = utility.reportError;
 //
 var parse = function(s)
 {
+    var result = [];
     var t = tokenizer.makeTokenizer(s);
-
-    var result = { exp: [], error: '' };
     
-    do
+    while (!t.eos) do
     { 
-	try 
-	{
-	    var r = readFrom(t);
-	    result.exp.push(r);
-	}
-	catch (err)
-	{
-	    result.error = err;
-	}
-    } while (!t.eos() && !result.error);
+	result.push(r);
+    }
     
     return result;
 }
