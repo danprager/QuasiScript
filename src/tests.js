@@ -148,8 +148,7 @@ exports.testFn = function(test)
 
 exports.testArray = function(test)
 {
-    var p = parse('(array 1 2 3 4 5)');
-    test.equal(compile(p.exp).indexOf('[1, 2, 3, 4, 5]'), 0);
+    test.equal(compile(parse('(array 1 2 3 4 5)')).indexOf('[1, 2, 3, 4, 5]'), 0);
     test.done();
 }
 
