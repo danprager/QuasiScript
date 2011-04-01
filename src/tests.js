@@ -54,8 +54,8 @@ exports.testParse = function(test)
 {
     // Error-inducing examples
     //
-    var perror = function(s) { test.ok(parse(s).error); }
-    
+    var perror = function(s) { test.throws(function () { parse(s); }); }
+
     perror('(');
     perror(')');
     perror('(]');
@@ -63,7 +63,8 @@ exports.testParse = function(test)
     perror('(()');
 
     // Parse/unparse combos
-    var pup = function (s, t) { test.equal(unparse(parse(s).exp), t || s); }
+    //
+    var pup = function (s, t) { test.equal(unparse(parse(s)), t || s); }
    
     pup('');
     pup('a b','a\nb');
@@ -84,12 +85,12 @@ exports.testParse = function(test)
 
 exports.testBracketDesugaring = function(test)
 {
-    var p = parse('[1 2 3]').exp[0];
+    var p = parse('[1 2 3]')[0];
     test.equal(p.length, 4);
     test.equal(p[0].token, '[');
     test.equal(p[0].atom, 'fn');
 
-    p = parse('{1 2 3}').exp[0];
+    p = parse('{1 2 3}')[0];
     test.equal(p.length, 4);
     test.equal(p[0].token, '{');
     test.equal(p[0].atom, 'object');
@@ -105,8 +106,7 @@ var compile = require('compiler').compile;
 
 exports.testCompile = function(test)
 {
-    var p = parse('(var number 42)');
-    test.equal(compile(p.exp).indexOf('var number = 42'), 0);
+    test.equal(compile(parse('(var number 42)')).indexOf('var number = 42'), 0);
 
     test.done();
 }

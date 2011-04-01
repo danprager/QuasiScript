@@ -12,16 +12,18 @@ var tokenizer = require('./tokenizer');
 
 var reportError = utility.reportError;
 
-// Tokenize and parse a string.
+// parse : String -> [AST]
+//
+// Throws tokenization and parse errors.
 //
 var parse = function(s)
 {
     var result = [];
     var t = tokenizer.makeTokenizer(s);
     
-    while (!t.eos) do
+    while (!t.eos())
     { 
-	result.push(r);
+	result.push(readFrom(t));
     }
     
     return result;
