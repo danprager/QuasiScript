@@ -29,8 +29,10 @@ exports.isList = function(a) { return Array.isArray(a); };
 // List manipulation
 //
 exports.first = function(a) { return a[0]; }
+exports.last = function(a) { return a[a.length-1]; }
 exports.rest = function(a) { return a.slice(1); }
-exports.drop = function(n, a) { return a.slice(n); }
+exports.drop = function(a, n) { return a.slice(n); }
+exports.dropLast = function(a) { return a.slice(0, a.length-1); }
 
 //--------------------------------------------------------------------------------
 // Higher order functions

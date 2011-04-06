@@ -5,10 +5,13 @@
 /// (c) Daniel Prager, 2011
 ///
 
+var _ = require('./underscore');
 var utility = require('./utility');
 var dialect = require('./dialect');
 var parser = require('./parser');
 
+var last = utility.last;
+var dropLast = utility.dropLast;
 var reportError = utility.reportError;
 
 //--------------------------------------------------------------------------------
@@ -21,15 +24,26 @@ var makeEnv = function(params, args, outer)
 {
     params = params || []; 
     args = args || []; 
-    var symbols = {}, i;
+    var symbols = {};
 
-    for (i = 0; i<params.length; i++) { symbols[params[i]] = args[i]; }
+    for (var i=0; i<params.length; i++) { symbols[params[i]] = args[i]; }
 
     return { symbols: symbols, 
 	     outer: outer, 
 	     find: function(sym) { return sym in this.symbols ? this.symbols : this.outer.find(sym); }
 	   }
 }
+
+var makeAncestor = function (name, parent)
+{
+    return { name: name,
+	     parent: parent,
+	     hasAncestor: function (n) { return this.name===n ? true :
+				                this.parent===undefined ? false :
+ 				                this.parent.hasAncestor(n); }
+	   }
+}
+
 
 // Set up some standard scheme procedures in the environment 'env'.
 //
@@ -70,6 +84,97 @@ var each = utility.each;
 var rest = utility.rest;
 var drop = utility.drop;
 
+var check = function(test, op, message)
+{
+    if (!test) throw reportError(op.line, op.column, message);
+}
+
+// Is 'name' a valid name for a symbol?
+//
+var validSymbol = function (name)
+{
+    return _.isString(name) &&
+	name.length > 0;         // TODO: && more to come
+}
+
+// Is 'x' an (as-yet) undeclared symbol in the current environment?
+//
+var checkExpectedOp = function (arr, op)
+{
+    // require: 'arr' is an array
+
+    check(arr[0].atom === op, arr[0], 'Expected operator ' + op + ', not ' + arr[0].atom);
+}
+
+var declare = function (x, env)
+{
+    var t = translate(x.atom), old;
+
+    if (t in env.symbols)
+    {
+	old = env.symbols[t];
+
+	check(false, x, 'Symbol "' + x.atom + '" was previously declared at line ' + old.line + ', column ' +  old.column);
+    }
+
+    env.symbols[t] = x;
+}
+
+var intersperse = function(inter, seq, env, parent, left, right)
+{
+    left = left || '';
+    right = right || '';
+    
+    out(left);
+    var i=0;
+    while(true)
+    {
+	comp(seq[i], env, parent);
+	i++;
+	if (i == seq.length) break;
+	out(inter);
+    }
+    out(right);
+}
+
+// Special forms
+//
+var specialForm =
+    {
+	'var': function (op, args, env, parent)
+	{
+	    check(args.length > 0, op, "Variable declaration(s) expected, none found.");
+	    _.each(args, function (x) 
+		   { 
+		       if (_.isArray(x)) checkExpectedOp(x, '=');
+		   });
+	    out('var ');
+	    intersperse(', ', args, env, makeAncestor('var', parent));
+	},
+	'=': function (op, args, env, parent)
+	{
+	    check(args.length > 1, op, 'Assignment requires (at least) two arguments.');
+	    //var last = last(args);
+	    // TODO: check(isExpression(last(args), 'Expression expected.');
+
+	    _.each(dropLast(args), function(x)
+		   {
+		       check(validSymbol(x.atom), x, 'Illegal symbol name.');
+		       if (parent.name === 'var')
+		       {
+			   declare(x, env); 
+		       }
+		       else
+		       {
+			   check(!(translate(x.atom) in env.symbols), x, 'Unknown variable');
+		       } 
+		   });
+
+	    intersperse(' = ', args, env, makeAncestor('=', parent));
+	}
+    }
+
+
 
 // Pretty printing helpers
 //
@@ -97,9 +202,10 @@ var compile = function(exps)
     code = '';
 
     var globalEnv = setGlobals(makeEnv());
+    var adam = makeAncestor('*adam*');      // The first ancestor
 
-    each(exps, function(x) { 
-	comp(x, globalEnv); 
+    _.each(exps, function(x) { 
+	comp(x, globalEnv, adam); 
 	out(';'); newLine(); });
 
     return code;
@@ -110,16 +216,8 @@ var compile = function(exps)
 // 'exp' is the parse tree.
 // 'env' is the environment (for enforcing scoping rules)
 //
-var comp = function comp(exp, env)
+var comp = function comp(exp, env, parent)
 {
-    var arg;
-
-    var assign = function(target, value)
-    {
-	out(translate(target.token) + ' = ');
-	comp(value, env);
-    }
-
     var seqForm = function(seq, implicitReturn, prepend)
     {
 	out('{ ');
@@ -172,23 +270,6 @@ var comp = function comp(exp, env)
 	seqForm(body, true, rest);  
     }
 
-    var intersperse = function(inter, seq, left, right)
-    {
-	left = left || '';
-	right = right || '';
-
-	out(left);
-	var i=0;
-	while(true)
-	{
-	    comp(seq[i], env);
-	    i++;
-	    if (i == seq.length) break;
-	    out(inter);
-	}
-	out(right);
-    }
-
     var objectForm = function(seq)
     {
 	out('{');
@@ -207,33 +288,25 @@ var comp = function comp(exp, env)
 	out('}');
     }
 
-    if (utility.isList(exp))
+    if (_.isArray(exp))
     {
 	if (exp.length == 0) {}	    // TODO: Is this an error?
 	else
 	{
-	    arg = exp[0].token;
-	    var argType = dialect.specialForms[arg];
+	    var first = _.first(exp);
+	    var arg = first.token;
+	    
+	    if (arg in specialForm)
+	    {
+		specialForm[arg](first, _.rest(exp), env, parent);
+	    }
+
+	    /*var argType = dialect.specialForms[arg];
 
 	    if(argType)
 	    {
 		switch(argType)
 		{
-		case 'DECLARATION':
-		    // TODO: error if there aren't 2 or 3 arguments
-		    // TODO: error if exp[1] cannot be declared, or has already been declared
-		    // TODO: error if exp[2] expands to an invalid form, e.g. an assignment 
-		    env.symbols[exp[1]] = 'VARIABLE';
-		    out('var ');
-		    if (exp.length == 2) out(translate(exp[1].token))
-		    else assign(exp[1], exp[2]);
-		    break;
-		case 'ASSIGNMENT':
-		    // TODO: error if there aren't 3 arguments
-		    // TODO: error if exp[1] cannot be assigned to
-		    // TODO: error if exp[2] expands to an invalid form, e.g. an assignment or a declaration
-		    assign(exp[1], exp[2]);
-		    break;
 		case 'SEQUENCE':
 		    // TODO: error if there aren't > 1 argument
 		    seqForm(rest(exp));
@@ -241,12 +314,12 @@ var comp = function comp(exp, env)
 		case 'WHEN':
 		    // TODO: error if there aren't 3 or more arguments
 		    out('if (');  comp(exp[1], env); out(') ');
-		    seqForm(drop(2, exp));
+		    seqForm(drop(exp, 2));
 		    break;
 		case 'LAMBDA':
 	  	    // TODO: error if there aren't at least 3 arguments
 		    // TODO: error if exp[1] isn't a list of arguments
-		    lambdaForm(exp[1], drop(2, exp));
+		    lambdaForm(exp[1], drop(exp, 2));
 		    break;   
 		case 'ARRAY':
 		    // TODO: error if any arguments aren't expressions
@@ -277,12 +350,12 @@ var comp = function comp(exp, env)
 		    out('; ' + forVar + '<=');
 		    comp(exp[3]);
 		    out('; ' + forVar + '++) ');
-		    seqForm(drop(4, exp));
+		    seqForm(drop(exp, 4));
 		    break;
 		default: // TODO: no code yet for this special form
 		}
 	    }
-
+*/
 //
 // TODO: Other special forms
 //
@@ -305,6 +378,11 @@ var comp = function comp(exp, env)
     }
     else
     {
+	if (parent.name === 'var')
+	{
+	    declare(exp, env);
+	}
+
 	out(translate(exp.token));     // TODO: Translate token, add error-checking
     }
 }

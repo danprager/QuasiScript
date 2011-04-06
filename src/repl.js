@@ -55,10 +55,10 @@ var run = function (buffer)
 	}
 	else
 	{
-	    var c = qs.compile(p.exp);
-	    // TODO: Abort and report compilation errors
+	    var c = qs.compile(p);
 
 	    stdout.write('\033[33m' + c + '\033[0m');   // Color: yellow
+
 	    var val = eval(c);
 	    if (val !== undefined) 
 	    {

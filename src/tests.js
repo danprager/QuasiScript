@@ -106,7 +106,7 @@ var compile = require('compiler').compile;
 
 exports.testCompile = function(test)
 {
-    test.equal(compile(parse('(var number 42)')).indexOf('var number = 42'), 0);
+    test.equal(compile(parse('(var (= number 42))')).indexOf('var number = 42'), 0);
 
     test.done();
 }
@@ -116,19 +116,26 @@ exports.testCompile = function(test)
 //--------------------------------------------------------------------------------
 
 var run = require('qs').run;
+var rerror = function (test, s) { test.throws(function() { run(s); }); }
 
-exports.testDeclaration = function(test)
+exports.testVar = function(test)
 {
-    test.equal(run('(var number 42) number'), 42);
-    test.equal(run('(var opposite true) opposite'), true);
+    rerror(test, '(var)');
+    rerror(test, '(var a a)');
+    rerror(test, '(var a b (= a 1)');
+    rerror(test, '(var (+ a b))');
+    
+    test.equal(run('(var (= number 42)) number'), 42);
+    test.equal(run('(var (= opposite true)) opposite'), true);
+    test.equal(run('(var a b (= c 42) d) c'), 42);
     test.done();
 }
-
+/*
 exports.testSequence = function(test)
 {
     var p = 
-'(begin (var number 42) \
-     (var opposite true) \
+'(begin (var (= number 42) \
+             (= opposite true)) \
      (when opposite \
          (= number -42)))';
 
@@ -207,3 +214,4 @@ exports.for = function(test)
 //
 
 // Macros
+*/
