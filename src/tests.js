@@ -118,7 +118,7 @@ exports.testCompile = function(test)
 var run = require('qs').run;
 var rerror = function (test, s) { test.throws(function() { run(s); }); }
 
-exports.testVar = function(test)
+exports.testDeclaration = function(test)
 {
     rerror(test, '(var)');
     rerror(test, '(var a a)');
@@ -130,14 +130,26 @@ exports.testVar = function(test)
     test.equal(run('(var a b (= c 42) d) c'), 42);
     test.done();
 }
+
+exports.testAssignment = function(test)
+{
+    rerror(test, '(=)');
+    rerror(test, '(= a)');
+    rerror(test, '(= 7 6');
+    rerror(test, '(= a (7)');
+    rerror(test, '(= a (var b))');
+    test.done();
+}
+
 /*
+
 exports.testSequence = function(test)
 {
     var p = 
 '(begin (var (= number 42) \
              (= opposite true)) \
-     (when opposite \
-         (= number -42)))';
+        (when opposite \
+              (= number -42)))';
 
     test.equal(run(p), -42);
     test.done();

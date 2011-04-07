@@ -106,6 +106,32 @@ var checkExpectedOp = function (arr, op)
     check(arr[0].atom === op, arr[0], 'Expected operator ' + op + ', not ' + arr[0].atom);
 }
 
+// Is 'x' a statement?
+//
+var isStatement = function(s)
+{
+    return _.contains(['break', 'continue', 'delete', 'label', 'return', 'var'], s);
+}
+
+// Is 'x' an expression?
+//
+var isExpression = function(x)
+{
+    var result = true;
+
+    if (_.isArray(x))
+    {
+	if (x.length === 0 || _.isArray(x[0]) || isStatement(x[0].atom))
+	{
+	    result = false;
+	}
+    }
+
+    return result;
+}
+
+// Add 'x' to environment 'env'
+//
 var declare = function (x, env)
 {
     var t = translate(x.atom), old;
@@ -153,9 +179,8 @@ var specialForm =
 	},
 	'=': function (op, args, env, parent)
 	{
-	    check(args.length > 1, op, 'Assignment requires (at least) two arguments.');
-	    //var last = last(args);
-	    // TODO: check(isExpression(last(args), 'Expression expected.');
+	    check(args.length > 1, op, 'Assignment expects at least two arguments.');
+	    check(isExpression(_.last(args)), 'Expression expected.');
 
 	    _.each(dropLast(args), function(x)
 		   {
@@ -166,7 +191,7 @@ var specialForm =
 		       }
 		       else
 		       {
-			   check(!(translate(x.atom) in env.symbols), x, 'Unknown variable');
+			   check(translate(x.atom) in env.symbols, x, 'Unknown variable');
 		       } 
 		   });
 
