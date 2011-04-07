@@ -94,7 +94,10 @@ var check = function(test, op, message)
 var validSymbol = function (name)
 {
     return _.isString(name) &&
-	name.length > 0;         // TODO: && more to come
+	name.length > 0;         
+
+    // TODO: prevent re-use of reserved words
+    // TODO: check for malformed symbols
 }
 
 // Is 'x' an (as-yet) undeclared symbol in the current environment?
@@ -163,6 +166,36 @@ var intersperse = function(inter, seq, env, parent, left, right)
     out(right);
 }
 
+var seqForm = function(seq, env, parent, implicitReturn, prepend)
+{
+    out('{ ');
+    indent();
+    
+    if (prepend)
+    {
+	out(prepend);  newLine();
+    }
+    
+    var i=0;
+    while(true)
+    {
+	if (implicitReturn && i === seq.length-1) 
+	{
+	    out('return ');
+	    parent = makeAncestor(parent, 'return');
+	}
+	comp(seq[i], env, parent);
+	out(';');
+	i++;
+	if (i === seq.length) break;
+	newLine();
+    }
+    
+    out(' }');
+    unindent();
+}
+
+
 // Special forms
 //
 var specialForm =
@@ -196,9 +229,44 @@ var specialForm =
 		   });
 
 	    intersperse(' = ', args, env, makeAncestor('=', parent));
+	},
+	'begin': function (op, args, env, parent)
+	{
+	    check(args.length >= 1, op, 'begin expects at least one argument.');
+	    seqForm(args, env, makeAncestor(parent, 'begin'));
+	},
+	'if': function (op, args, env, parent)
+	{
+	    check(args.length >= 1, op, 'if expects at least one argument.');
+	    var p = makeAncestor('if', parent);
+	    for (var i=0; i<args.length; i++)
+	    {
+		var clause = args[i];
+
+		check(_.isArray(clause), clause, '(...) expected.');
+		check(args[i].length >= 2, op, 'Clause ' + (i+1) + ' of the if-statement needs at least two arguments.'); // TODO: How do we report the line & col numbers?
+		check(isExpression(clause[0]), 'Expression expected.');
+		if (args[i][0].atom === 'else')
+		{
+		    check(i > 0, clause[0], 'else is not allowed in the first clause of an if-statement.');
+		}
+		else
+		{
+		    out('if (');
+		    comp(clause[0], env, p);
+		    out(') ');
+		}
+
+		seqForm(_.rest(clause), env, p);
+
+		if (i < args.length-1)
+		{
+		    newLine();
+		    out('else ');
+		}
+	    }
 	}
     }
-
 
 
 // Pretty printing helpers
@@ -243,30 +311,6 @@ var compile = function(exps)
 //
 var comp = function comp(exp, env, parent)
 {
-    var seqForm = function(seq, implicitReturn, prepend)
-    {
-	out('{ ');
-	indent();
-
-	if (prepend)
-	{
-	    out(prepend);  newLine();
-	}
-
-	var i=0;
-	while(true)
-	{
-	    if (implicitReturn && i === seq.length-1) out('return ');
-	    comp(seq[i], env);
-	    out(';');
-	    i++;
-	    if (i === seq.length) break;
-	    newLine();
-	}
-
-	out(' }');
-	unindent();
-    }
 
     var lambdaForm = function(args, body)
     {
@@ -332,15 +376,7 @@ var comp = function comp(exp, env, parent)
 	    {
 		switch(argType)
 		{
-		case 'SEQUENCE':
-		    // TODO: error if there aren't > 1 argument
-		    seqForm(rest(exp));
-		    break;
-		case 'WHEN':
-		    // TODO: error if there aren't 3 or more arguments
-		    out('if (');  comp(exp[1], env); out(') ');
-		    seqForm(drop(exp, 2));
-		    break;
+
 		case 'LAMBDA':
 	  	    // TODO: error if there aren't at least 3 arguments
 		    // TODO: error if exp[1] isn't a list of arguments

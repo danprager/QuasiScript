@@ -14,12 +14,7 @@ var compile = require('./compiler').compile;
 
 var run = function (s)
 {
-    console.log('----');
-    var c = compile(parse(s));
-    console.log(c);
-    console.log('----');
-
-    return eval(c);
+    return eval(compile(parse(s)));
 }
 
 //--------------------------------------------------------------------------------

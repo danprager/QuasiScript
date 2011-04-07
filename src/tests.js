@@ -141,20 +141,29 @@ exports.testAssignment = function(test)
     test.done();
 }
 
-/*
-
 exports.testSequence = function(test)
 {
+    rerror(test, '(begin)');
+
     var p = 
 '(begin (var (= number 42) \
              (= opposite true)) \
-        (when opposite \
-              (= number -42)))';
-
+        (if (opposite (= number -42))))';
     test.equal(run(p), -42);
+
     test.done();
 }
 
+exports.testIf = function(test)
+{
+    rerror(test, '(if)');
+    rerror(test, '(if (else 5))');
+    rerror(test, '(if ())');
+
+    test.done();
+}
+
+/*
 exports.testFn = function(test)
 {
     var p =
