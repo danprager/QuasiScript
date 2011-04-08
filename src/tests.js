@@ -162,18 +162,17 @@ exports.testIf = function(test)
 
     test.done();
 }
-
 /*
 exports.testFn = function(test)
 {
     var p =
-'(var sqr (fun (x) \
-              (* x x))) \
+'(var (= sqr (fun (x) (* x x)))) \
  (sqr 5)';
     test.equal(run(p), 25);
     test.done();
 }
 
+/*
 exports.testArray = function(test)
 {
     test.equal(compile(parse('(array 1 2 3 4 5)')).indexOf('[1, 2, 3, 4, 5]'), 0);

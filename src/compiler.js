@@ -86,7 +86,11 @@ var drop = utility.drop;
 
 var check = function(test, op, message)
 {
-    if (!test) throw reportError(op.line, op.column, message);
+    if (!test) 
+    {
+	while (_.isArray(op)) op = op[0];
+	throw reportError(op.line, op.column, message);
+    }
 }
 
 // Is 'name' a valid name for a symbol?
@@ -113,7 +117,7 @@ var checkExpectedOp = function (arr, op)
 //
 var isStatement = function(s)
 {
-    return _.contains(['break', 'continue', 'delete', 'label', 'return', 'var'], s);
+    return _.contains(['=', 'break', 'continue', 'delete', 'for', 'if', 'label', 'return', 'var', 'while'], s);
 }
 
 // Is 'x' an expression?
@@ -137,7 +141,7 @@ var isExpression = function(x)
 //
 var declare = function (x, env)
 {
-    var t = translate(x.atom), old;
+    var t = x.atom, old;
 
     if (t in env.symbols)
     {
@@ -195,6 +199,28 @@ var seqForm = function(seq, env, parent, implicitReturn, prepend)
     unindent();
 }
 
+var pluralize = function (s, n)
+{
+    return s + (n === 1 ? '' : 's');
+}
+
+var checkArgs = function (op, args, min, max)
+{
+    var n = args.length;
+
+    if (min == max)
+    {
+	check(n === min, op, op.atom + ' takes exactly' + min + pluralize(' argument', min) + '; ' + n + ' given.');
+    }
+    else if (max === undefined)
+    {
+	check(n >= min, op, op.atom + ' takes at least ' +  min + pluralize(' argument', min) + '; ' + n + ' given.');
+    }
+    else
+    {
+	check(min <= n && n <= max, op, op.atom + ' takes ' +  min + ' to ' + max + pluralize(' argument', max) + '; ' + n + ' given.');
+    }
+}
 
 // Special forms
 //
@@ -202,7 +228,7 @@ var specialForm =
     {
 	'var': function (op, args, env, parent)
 	{
-	    check(args.length > 0, op, "Variable declaration(s) expected, none found.");
+	    checkArgs(op, args, 1);
 	    _.each(args, function (x) 
 		   { 
 		       if (_.isArray(x)) checkExpectedOp(x, '=');
@@ -212,8 +238,8 @@ var specialForm =
 	},
 	'=': function (op, args, env, parent)
 	{
-	    check(args.length > 1, op, 'Assignment expects at least two arguments.');
-	    check(isExpression(_.last(args)), 'Expression expected.');
+	    checkArgs(op, args, 2);
+	    check(isExpression(_.last(args)), _.last(args),  'Expression expected.');
 
 	    _.each(dropLast(args), function(x)
 		   {
@@ -224,7 +250,7 @@ var specialForm =
 		       }
 		       else
 		       {
-			   check(translate(x.atom) in env.symbols, x, 'Unknown variable');
+			   check(x.atom in env.symbols, x, 'Undeclared variable ' + x.atom);
 		       } 
 		   });
 
@@ -232,12 +258,12 @@ var specialForm =
 	},
 	'begin': function (op, args, env, parent)
 	{
-	    check(args.length >= 1, op, 'begin expects at least one argument.');
+	    checkArgs(op, args, 1);
 	    seqForm(args, env, makeAncestor(parent, 'begin'));
 	},
 	'if': function (op, args, env, parent)
 	{
-	    check(args.length >= 1, op, 'if expects at least one argument.');
+	    checkArgs(op, args, 1);
 	    var p = makeAncestor('if', parent);
 	    for (var i=0; i<args.length; i++)
 	    {
@@ -426,14 +452,20 @@ var comp = function comp(exp, env, parent)
 	    }
 	    else if (arg in dialect.binaryOperator)
 	    {
-		// TODO: Error if < 3 arguments
-		intersperse(dialect.binaryOperator[arg], rest(exp), '(', ')');
+		checkArgs(op, args, 2);
+		var binOp = dialect.binaryOperator[arg];
+		var left, right;
+		if (!isStatement(parent.name) && parent.parent !== undefined)
+		{
+		    left = '(';  right = ')';
+		}
+
+		intersperse(binOp, _.rest(exp), env, makeAncestor(arg, parent), left, right);
 	    }
-	    else // TODO: Procedure call
+	    else // Procedure call
 	    {		
-		out(translate(arg) + '(');
-		intersperse(', ', rest(exp));
-		out(')');
+		out(translate(arg));
+		intersperse(', ',  _.rest(exp), env, makeAncestor(arg, parent),'(', ')');
 	    } 
 	}
     }
